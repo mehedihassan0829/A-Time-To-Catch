@@ -1,1 +1,16 @@
+# A Time To Catch - Park Street, Bristol
+#
+# Everything you need to install is listed here. The only library the game uses that
+# doesn't come with Python is pygame-ce (graphics, sound, keyboard). Everything else it
+# uses (math, random, json, pathlib, zlib, subprocess...) is built into Python 3.
+#
+# One command to install everything and play:
+#   Windows:       double-click play.bat   (or run:  play.bat)
+#   Mac / Linux:   ./play.sh
+#   Any computer:  python main.py   (installs anything missing automatically on first run)
+#
+# Or install by hand:   python -m pip install -r requirements.txt
+#
+# Needs Python 3.9 or newer. pygame-ce (Community Edition) is used instead of plain "pygame"
+# because it has ready-made installs for new Python versions (3.13+), so nothing needs compiling.
 pygame-ce>=2.5.8

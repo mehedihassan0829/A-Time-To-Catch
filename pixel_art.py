@@ -78,7 +78,7 @@ def ellipse_fill(s, c, cx, cy, rx, ry):
 
 
 def pixelize(img: pygame.Surface) -> pygame.Surface:
-    """Turn a smooth sprite into chunky pixels on the same 4x grid (for the leftover Kenney art)."""
+    """Turn a smooth sprite into chunky pixels on the same 4x grid."""
     w, h = img.get_size()
     sw, sh = max(1, w // PX), max(1, h // PX)
     small = pygame.transform.smoothscale(img, (sw, sh))
@@ -248,6 +248,8 @@ CORNICE_H = 4
 
 def building_height(b):
     """Facade height in logical pixels for a building record."""
+    if b.get("h"):                                                   # set by hand in the map (e.g. a low wall)
+        return int(b["h"])
     st = b["style"]
     if st == "H":
         floors = max(2, min(4, int(b.get("floors", 3))))
