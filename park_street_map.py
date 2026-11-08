@@ -161,8 +161,8 @@ ORNAMENTS = [{'kind': 'unicorn', 'tile': (84, 35)}, {'kind': 'unicorn', 'tile': 
 
 # shops you can walk into: building index, interior type, door tile, which side the door faces
 SHOPS = [
-    # the Wills Memorial Building's front door (Professor Usher's office is inside)
-    {'building': 62, 'kind': 'usher', 'door': (11, 18), 'side': 'south', 'brand': 'WILLS MEMORIAL BUILDING', 'centre': 11.5},
+    # the Wills Memorial Building's front door: its entrance hall (Professor Usher's office is off it)
+    {'building': 62, 'kind': 'wills', 'door': (11, 18), 'side': 'south', 'brand': 'WILLS MEMORIAL BUILDING', 'centre': 11.5},
     {'building': 70, 'kind': 'cafe', 'door': (35, 19), 'side': 'south', 'brand': 'SLOW DRIP', 'centre': 35.5},
     {'building': 71, 'kind': 'hostel', 'door': (38, 19), 'side': 'south', 'brand': 'NIGHT OWL', 'centre': 38.5},
     {'building': 72, 'kind': 'cafe', 'door': (41, 19), 'side': 'south', 'brand': 'FIKA', 'centre': 41.5},

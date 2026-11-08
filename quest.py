@@ -24,9 +24,22 @@ TILE = 64
 # where the places in the story are: name -> (place, door tile, shop kind)
 DOORS = {
     "arcade": ("Harbourside", (29, 45), "arcade"),
-    "usher": ("Park Street", (11, 18), "usher"),
+    "usher": ("Park Street", (11, 18), "wills"),       # the Wills Memorial Building (his office is off the hall)
     "gazette": ("Park Street", (122, 19), "gazette"),
     "hostel": ("Park Street", (38, 19), "hostel"),
+}
+OFFICE_DOOR = (2, 1)              # in the Wills hall: Professor Usher's door (stand below it and walk up)
+# Things to look at in Usher's packed-up office (the last visit): id -> (where to stand, how close, what it says)
+HOTSPOTS = {
+    "desk": ((4.0, 5.0), 1.25, "E: search the desk"),
+    "computer": ((8.0, 3.0), 1.2, "E: use the computer"),
+    "cabinet": ((6.0, 2.2), 0.95, "E: look in the filing cabinet"),
+    "bookcase": ((2.3, 2.3), 1.2, "E: look at the bookcase"),
+    "bookcase2": ((10.0, 2.4), 0.9, "E: look at the bookcase"),
+    "box1": ((3.5, 3.1), 0.8, "E: look in the box"),
+    "box2": ((8.5, 4.2), 0.85, "E: look in the box"),
+    "box3": ((6.5, 6.1), 0.85, "E: look in the box"),
+    "armchair": ((9.5, 7.5), 1.0, "E: look at the armchair"),
 }
 SEAGULL_FRONT = (3, 2)            # in the arcade: in front of the Seagull Bird machine on the back wall
 LOCKER_FRONT = (21, 5)            # in the store room: in front of John's locker
@@ -329,6 +342,8 @@ class Story:
         self.photos = {}
         self.ids = {}                       # who's who in the world now: "martin", "barista", "daniel", ...
         self.ended = False                  # the story's over: time for the film
+        self.want_computer = False          # E at Usher's computer: the game opens it (and stops the clock)
+        self.ticket_time = None             # the train on Usher's ticket (fixed once you've seen it)
         self.choice = None                  # a question with options on screen (the hostel: sleep until when?)
         self.hide_player = False            # the detective's on the bus
         self.cutscene = Cutscene(S.OPENING, self)
@@ -366,6 +381,9 @@ class Story:
             text = f"Wait for Emily Carter at {self.emily_cafe[1]['brand'].title()} (she comes in at 6pm)"
             if not self._open("cafe"):
                 text = "Emily comes in at 6pm and the café's shut - rest at the Night Owl hostel until then"
+        if ob["id"] == "search":
+            n = sum(1 for k in ("record1999", "ju_photo", "ticket") if k in self.flags)
+            text = f"Search Professor Usher's office - walk up to things, E to look ({n} of 3 clues found)"
         if ob["id"] in ("arcade", "high_score", "locker", "records") and not self._open("arcade"):
             text += " (the arcade opens at 10:00 - rest at the Night Owl hostel, or hold T)"
         return text
@@ -521,6 +539,16 @@ class Story:
             bed = any(world.at(tx + dx, ty + dy, " ") == "e" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
             if bed or self._near_staff(world, player):
                 return "E: get some rest (choose how long)"
+        if o == "search" and kind == "usher":
+            best = None
+            for hid, ((hx, hy), r, text) in HOTSPOTS.items():
+                d = math.hypot(px - hx * TILE, py - hy * TILE)
+                if d < r * TILE and (best is None or d < best[0]):
+                    best = (d, hid, text)
+            if best:
+                if best[1] == "desk" and "record1999" in self.flags:
+                    return "E: open the desk drawers" if "ju_photo" not in self.flags else "E: search the desk"
+                return best[2]
         if o == "locker" and kind == "arcade" and near(*LOCKER_FRONT, 1.3):
             return "E: open John's locker"
         if o == "records" and kind == "arcade" and py < 3.4 * TILE and 17.5 * TILE < px < 22.5 * TILE:
@@ -545,6 +573,9 @@ class Story:
             return True
         if p.startswith("E: get some rest"):
             self.rest_menu()
+            return True
+        if self.oid() == "search" and (world.interior or {}).get("kind") == "usher":
+            self._search(p, world, player)
             return True
         if p.startswith("E: buy"):
             self.start(S.NEWSPAPER_BUY, lambda: self.open_view("paper2026"), talking=self.ids.get("shopkeeper"))
@@ -574,6 +605,41 @@ class Story:
             self.fade, self.fade_fn = 2.0, six
             self.say("Later...", 2.0)
         return True
+
+    # ---- searching Usher's office (the last visit): it's up to you
+    def _search(self, p, world, player):
+        if p == "E: use the computer":
+            if not self.ticket_time:                 # the next train, from now (time stops at the computer, and
+                m = (int(self.clock.hour * 60) + 50) // 5 * 5      # it's fixed once you've found the ticket)
+                documents.TICKET["time"] = f"{(m // 60) % 24:02d}:{m % 60:02d}"
+            self.want_computer = True
+            return
+        if p in ("E: search the desk", "E: open the desk drawers"):
+            if "record1999" not in self.flags:
+                self.start(S.SEARCH_RECORD, self._search_progress)
+            elif "ju_photo" not in self.flags:
+                self.start(S.SEARCH_DRAWER, self._search_progress)
+            else:
+                self.start(S.SEARCH_DESK_EMPTY)
+            return
+        px, py = player.pos.x, player.pos.y
+        hid = min((h for h in HOTSPOTS if h not in ("desk", "computer")),
+                  key=lambda h: math.hypot(px - HOTSPOTS[h][0][0] * TILE, py - HOTSPOTS[h][0][1] * TILE))
+        self.start(S.SEARCH_LOOKS[hid.rstrip("2")])
+
+    def computer_closed(self, found):
+        """Back from Usher's computer. found = you opened the ticket in his browser history."""
+        if found and "ticket" not in self.flags:
+            self.ticket_time = documents.TICKET["time"]
+            self.flags.add("ticket")
+            self.start(S.SEARCH_TICKET, self._search_progress)
+
+    def _search_progress(self):
+        if all(k in self.flags for k in ("record1999", "ju_photo", "ticket")):
+            self.start(S.SEARCH_DONE, lambda: self.complete())
+        else:
+            n = sum(1 for k in ("record1999", "ju_photo", "ticket") if k in self.flags)
+            self.say(f"{n} of 3 clues found. Keep looking.", 3.0)
 
     # ---- passing the time (the hostel)
     def rest_menu(self):
@@ -631,7 +697,7 @@ class Story:
 
     def room(self, kind):
         """Which layout a room has now (Usher's office is packed up by the end)."""
-        if kind == "usher" and self.oid() in ("usher2", "station", None):
+        if kind == "usher" and self.oid() in ("usher2", "search", "station", None):
             return "usher_packed", "packed"
         return kind, None
 
@@ -658,6 +724,9 @@ class Story:
 
         def door(name):
             p, (dx, dy), k = DOORS[name]
+            if name == "usher" and kind == "wills":                  # in the hall: his door, top left
+                self.compass.final = "up"
+                return ((OFFICE_DOOR[0], OFFICE_DOOR[1] + 1),)
             if kind is not None and kind != k:
                 return exit_()
             return go_to(p, [(dx, dy + 1)], "up")
@@ -668,6 +737,10 @@ class Story:
                 cx, cy = int(a.x // TILE), int(a.y // TILE)
                 return tuple((cx + dx, cy + dy) for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) if abs(dx) + abs(dy) <= 2)
             return go_to("Harbourside", [])
+        if o == "search":
+            if kind == "usher":
+                return ()                                            # no pointing: you're the detective
+            return door("usher")
         if o in ("arcade", "usher", "usher2", "daniel"):
             name = {"arcade": "arcade", "usher": "usher", "usher2": "usher", "daniel": "gazette"}[o]
             if o == "daniel" and kind == "gazette":

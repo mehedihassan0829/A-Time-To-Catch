@@ -9,7 +9,7 @@ TITLE_RED = (220, 30, 30)        # the same red as the title at the end of the f
 CONTROLS = [
     ("WASD / arrow keys", "walk"), ("Shift", "run"), ("E", "talk, look at things, play an arcade machine"),
     ("Click / E / Space", "next line in a cut scene"), ("I", "your pocket (Enter to use / read things)"),
-    ("N", "notebook"), ("F", "lighter"), ("T (hold)", "make time pass faster"), ("Tab", "change character"),
+    ("N", "notebook"), ("F", "lighter"), ("T (hold)", "make time pass faster"),
     ("Esc", "pause menu"), ("F11", "fullscreen / window"),
 ]
 

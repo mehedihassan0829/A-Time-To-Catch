@@ -7,6 +7,7 @@ import quest_script as S
 
 INK = (28, 26, 24)
 _cache = {}
+TICKET = {"time": "21:05"}       # the train on Usher's ticket (set by the story the first time you see it)
 
 
 def serif(n, b=False, i=False):
@@ -35,7 +36,7 @@ def wrap(font, text, width):
 
 def get(view, size, photos, now_hour=12.0):
     """The finished document for a view id, sized to fit the screen. photos(sid) gives a still of a scene."""
-    key = (view, size, int(now_hour * 6) if view == "computer" else 0)
+    key = (view, size, int(now_hour * 6) if view == "computer" else (TICKET["time"] if view == "ticket" else 0))
     got = _cache.get(key)
     if got is None:
         w, h = size
@@ -46,7 +47,8 @@ def get(view, size, photos, now_hour=12.0):
               "record1999": lambda: record("1999", S.STAFF_1999, ["P. Usher", "J. Harper"], w, h),
               "photo1999": lambda: photograph(photos("photo1999"), w, h, "Summer '99", tilt=-3),
               "ju_photo": lambda: photograph(photos("ju_photo"), w, h, None, tilt=2, zoom=1.6),
-              "ju_back": lambda: photo_back(w, h), "computer": lambda: computer(w, h, now_hour)}[view]
+              "ju_back": lambda: photo_back(w, h), "computer": lambda: computer(w, h, now_hour),
+              "ticket": lambda: ticket(w, h, TICKET["time"])}[view]
         got = _cache[key] = fn()
     return got
 
@@ -310,4 +312,25 @@ def computer(w, h, now_hour):
     note = serif(18, False, True).render("Ticket bought this morning: 1 adult, single, from Clifton Down",
                                          True, (90, 90, 100))
     s.blit(note, (scr.x + 20, y))
+    return s
+
+
+# ------------------------------------------------------------------ Usher's train ticket (found in his browser history)
+def ticket(w, h, time_text):
+    W, H = min(760, w - 120), min(380, h - 120)
+    s = pygame.Surface((W, H), pygame.SRCALPHA)
+    pygame.draw.rect(s, (250, 246, 236), (0, 0, W, H), border_radius=12)
+    pygame.draw.rect(s, (200, 60, 40), (0, 0, W, 60), border_top_left_radius=12, border_top_right_radius=12)
+    s.blit(serif(28, True).render("RailSaver  e-ticket", True, (255, 255, 255)), (24, 14))
+    s.blit(mono(16).render("Order RS-48213", True, (255, 230, 220)), (W - 190, 22))
+    rows = [("Passenger", "1 adult"), ("Ticket", "Anytime Single"), ("From", "CLIFTON DOWN"),
+            ("Departs", f"{time_text} today"), ("Bought", "07:12 this morning")]
+    y = 84
+    for k, v in rows:
+        s.blit(mono(18).render(k, True, (120, 110, 100)), (30, y))
+        s.blit(mono(22, True).render(v, True, INK), (220, y - 2))
+        y += 46
+    for x in range(W - 170, W - 40, 6):                                   # the barcode
+        if (x * 7) % 5 < 3:
+            pygame.draw.rect(s, INK, (x, 90, 3, 150))
     return s
