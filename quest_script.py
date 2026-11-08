@@ -20,6 +20,8 @@ Stage directions (all optional):
   view="paper1999"         show a document full screen (see documents.py); view=None puts it away
   ring=True / False        (the opening) the phone ringing
   flame=True / False       (the opening) the lighter
+  film="intro"             play a film full screen (art/videos/intro_720p.mp4 + intro_audio.ogg - see video.py), then
+                           go straight on to the next line (going back stops after the film; it doesn't play again)
   meet="martin"            the detective has now spoken to this suspect (see SUSPECTS): when the scene's over the
                            journal opens at their page, so you can cross them off and jot down a note
   journal="intro"          when the scene's over, the journal goes in your pocket and opens on the suspects
@@ -99,12 +101,10 @@ WATCH_HINT = "Your compass has frozen. Watch your watch instead: the closer you 
 
 # ------------------------------------------------------------------ the opening: the detective's flat, the night before
 OPENING = [
-    ("", "Bristol. Late at night.", dict(scene="home", flame=False)),
-    ("", "In his flat, a private detective is about to light up a cigarette...", dict(flame=True)),
-    ("", "...when the phone rings.", dict(ring=True, flame=False, move=("detective", (6.5, 4.6)))),
-    ("Detective", "Hello?", dict(ring=False)),
-    ("", "..."),
-    ("Detective", "I'll be there."),
+    # ("", "Bristol. Late at night.", dict(scene="home", flame=False)),
+    # ("", "In his flat, a private detective is about to light up a cigarette...", dict(flame=True)),
+    # ("", "...when the phone rings.", dict(ring=True, flame=False, move=("detective", (6.5, 4.6)))),
+    ("", "", dict(film="intro", ring=False, black=True)),      # the film: he answers the phone and heads out
     ("", "The next morning, the detective sets off for the harbourside.", dict(black=True)),
     ("", "Follow the compass at the top of the screen. Park Stores sells the morning papers, if you want one on the way.",
      dict(end_scene=True)),

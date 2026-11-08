@@ -77,7 +77,7 @@ except ImportError:
 import arcade                          # the arcade machines and their games (arcade.py)
 import music as music_                 # the music (art/music) and which track plays where (music.py)
 import menu as menu_                   # the main menu and the pause menu (menu.py)
-import video                           # the film at the end (art/videos, video.py)
+import video                           # the films: the phone call at the start, the end (art/videos, video.py)
 import quest                           # objectives, the compass, cut scenes, the newspaper (quest.py)
 import computer                        # Professor Usher's computer - the ticket's in its history (computer.py)
 
@@ -2886,6 +2886,19 @@ def run_game(screen, clock, music, menu):
                 running = False
                 continue
             story.computer_closed(found)
+            pygame.event.clear()
+            clock.tick()
+            accumulator = 0.0
+            keys_now = pygame.key.get_pressed()
+            continue
+        if story.want_film:                                  # a film in a cut scene (the opening: the phone call)
+            name, story.want_film = story.want_film, None
+            music.stop()
+            if video.play(screen, clock, BASE_DIR / "art" / "videos", name, card=None) == "quit":
+                running = False
+                continue
+            music.lost()                                     # our music starts again
+            story.film_done()
             pygame.event.clear()
             clock.tick()
             accumulator = 0.0

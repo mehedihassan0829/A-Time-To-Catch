@@ -240,7 +240,8 @@ class ScriptKeys:
 
 
 class Cutscene:
-    BOUNDARY = ("scene", "cut", "end_scene")     # going back stops at the line where a scene / time echo starts or ends
+    BOUNDARY = ("scene", "cut", "end_scene", "film")   # going back stops where a scene / time echo starts or ends
+                                                         # (and just after a film - it doesn't play again)
 
     def __init__(self, lines, story, then=None):
         self.lines = lines
@@ -290,6 +291,8 @@ class Cutscene:
         j = self.i
         while j > 0 and not any(k in self.stage(j) for k in self.BOUNDARY):
             j -= 1
+        if j < self.i and "film" in self.stage(j):
+            return j + 1
         return j
 
     @property
@@ -404,6 +407,7 @@ class Story:
         self.ids = {}                       # who's who in the world now: "martin", "barista", "daniel", ...
         self.ended = False                  # the story's over: time for the film
         self.want_computer = False          # E at Usher's computer: the game opens it (and stops the clock)
+        self.want_film = None               # a film to play now (the film= stage direction): the game plays it
         self.ticket_time = None             # the train on Usher's ticket (fixed once you've seen it)
         self.choice = None                  # a question with options on screen (the hostel: sleep until when?)
         self.hide_player = False            # the detective's on the bus
@@ -1003,6 +1007,8 @@ class Story:
         self.black = bool(stage.get("black"))
         if not stage:
             return
+        if "film" in stage:                                             # the game plays it, then calls film_done()
+            self.want_film = stage["film"]
         if "meet" in stage and not self.journal.met(stage["meet"]):     # spoken to a suspect: cross them off
             self.journal.meet(stage["meet"])
             if "journal" in self.flags:
@@ -1063,6 +1069,13 @@ class Story:
             a = self._actor(self.ids.get(stage["walk_to_player"], stage["walk_to_player"]))
             if a is not None:
                 self._send_to_player(a)
+
+    def film_done(self):
+        """Back from a film (the film= stage direction): straight on to the next line of the scene."""
+        cs = self.cutscene
+        if cs is not None and "film" in cs.stage(cs.i):
+            cs.shown = len(cs.line()[1])
+            cs.advance()
 
     def give(self, g):
         if g in self.flags:
@@ -1258,6 +1271,7 @@ class Story:
                 cs.shown = len(cs.line()[1])
                 cs.advance()
             self.journal_queue.clear()                      # skipping: don't stop to open the journal
+            self.want_film = None                           # ...or to play a film
             if self.cutscene is cs:
                 self._end_cutscene()
             return None

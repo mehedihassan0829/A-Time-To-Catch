@@ -44,7 +44,7 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 
 ## Playing the story
 
-Every time the game runs, the story starts the night before in the detective's flat: he's about to light a cigarette when the phone rings. The next morning you're on Park Street. Click (or press E, Space or Enter) to move on through cut scenes.
+Every time the game runs, the story starts the night before in the detective's flat: he's about to light a cigarette when the phone rings, and a short film shows him answering it and heading out (`art/videos/intro_720p.mp4`; Esc skips it). The next morning you're on Park Street. Click (or press E, Space or Enter) to move on through cut scenes.
 
 The compass at the top of the screen always points the way to walk to your next objective. It follows the real walking route around buildings, water, the police tape and people, and keeps to the pavement. The distance shows in metres. When the next place is on another map or behind a door, it leads you there first. Press **E** when a prompt appears (a locker, a shelf, a question).
 
