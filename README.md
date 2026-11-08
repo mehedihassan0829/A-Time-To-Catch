@@ -29,13 +29,16 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 | Shift | run |
 | E | talk, look at things, play an arcade machine |
 | Click / E / Space | next line in a cut scene, put the newspaper away |
+| Backspace / Left / Q | back a line in a conversation or cut scene (only as far as the start of that scene or time echo) |
 | I | pocket (inventory) |
 | N | notebook |
+| J | journal (the suspects) |
 | F | lighter |
 | T (hold) | make time pass faster |
 | F1 | show hitboxes |
 | F3 | show FPS |
 | F5 / F6 / F7 | *(testing)* jump to the Frogmore steps / Park Street stairwell / the arcade |
+| F8 / the **DEV: skip >>** button (bottom right) | *(testing)* skip on: in a cut scene it finishes the scene; otherwise it takes you to the next area and starts the next scene. Turn it off with `DEV_SKIP = False` in `main.py` |
 | Esc | pause menu (resume, controls, music volume, full screen / window, main menu, quit) |
 | F11 | full screen / window |
 
@@ -45,13 +48,17 @@ Every time the game runs, the story starts the night before in the detective's f
 
 The compass at the top of the screen always points the way to walk to your next objective. It follows the real walking route around buildings, water, the police tape and people, and keeps to the pavement. The distance shows in metres. When the next place is on another map or behind a door, it leads you there first. Press **E** when a prompt appears (a locker, a shelf, a question).
 
+When you're **searching a room** for something (John's locker and the staff records in the arcade's store room, the clues in Usher's packed-up office) the compass freezes. Your watch takes over instead: it gets bigger and spins, and the closer you get to what you're looking for, the faster it spins. Once you find it, the watch goes back to the real time.
+
+**The journal.** After the police officer at the crime scene, your journal opens on the four suspects (Daniel Shaw, Martin Bell, Emily Carter and Professor Usher): "These will be the suspects you are investigating." Each time you speak to one of them it opens at their page. Press Enter (or click the box) to cross them off, and type a short note under their picture. It's in your pocket too (**J**).
+
 1. **The crime scene at the harbourside.** You talk to the police officer and Daniel Shaw, and Daniel gives you his number. The officer then hands you John's audio recorder, which brings on the first **time echo**. Time echoes are flashbacks in black and white, set in the place itself: here John is standing by the water when a shadowy figure comes up behind him.
-2. **The Bristol Arcade.** A hint tells you to beat John's high score on Seagull Bird. Do that and Martin comes over to talk. He lets you into John's locker in the store room, where you find a token, an old photograph and notes that cite Professor Usher.
+2. **The Bristol Arcade.** A hint tells you to beat John's high score on Seagull Bird. Do that and Martin comes over to talk. He lets you into John's locker in the store room (find the right one by your watch), where you find a token, an old photograph and notes that cite Professor Usher.
 3. **Professor Usher's office.** The Wills Memorial Building's front door on Park Street opens into the entrance hall: the twin staircases, the porter's desk, the busts and display cases. Usher's office is the oak door on the left of the hall. Usher isn't in, and an echo shows John and Usher talking about the photograph.
 4. **The cafés.** You ask for Emily in one café after another. At the fourth, they tell you Emily Carter comes in at 6pm, so you sit and wait. She shows you the photograph, and an echo shows her and John looking at it.
 5. **The Gazette** (Daniel's newspaper office on Park Street). Daniel finds the 1999 front page: Jack Harper, 31, found dead in the river.
 6. **The arcade's store room.** The 1999 staff binder is missing from the shelf. The 1998 one has P. Usher on it.
-7. **Usher's office again.** It's been packed up, and this time nobody tells you where to look: the compass stops pointing and you search the room yourself. Walk up to things (the desk, the bookcases, the boxes, the armchair, the computer) and press E. There are three clues to find: the missing 1999 record, the photograph of Jack and Usher (which brings on the last echo) and Usher's train ticket.
+7. **Usher's office again.** It's been packed up, and this time nobody tells you where to look: the compass stops pointing and you search the room yourself. Walk up to things (the desk, the bookcases, the filing cabinets, the boxes, the sofa, the computer) and press E, and follow your watch. There are three clues to find: the missing 1999 record, the photograph of Jack and Usher (which brings on the last echo) and Usher's train ticket.
    - **Usher's computer** is left on. Use it with the mouse: a web browser, his mail, his documents and the recycle bin. The ticket is somewhere in the browser's **history** (Ctrl+H, or the History button), among everything else he's looked at, and nothing on the screen calls it a ticket. You can type in the search box to filter the history. Time stands still while you're at the computer, so the train time on the ticket doesn't change while you look. Esc or "Step away from the computer" takes you back to the room.
 8. **Clifton Down station.** Catch the bus at the College Green stop on Park Street: wait at the shelter, and press E when the bus pulls in. It takes you to Clifton Down, and the film plays.
 

@@ -59,6 +59,7 @@ import pixel_art as pa                 # all the pixel-art drawing (pixel_art.py
 import people                          # NPCs (people.py) - story characters are in story.py
 import traffic                         # traffic lights, cars, the bus (traffic.py)
 import inventory                       # your pocket + notebook (inventory.py)
+import journal                         # the suspects' journal (journal.py)
 import daynight                        # the clock, day/night lighting and your watch (daynight.py)
 
 try:                                   # Frogmore Street, down the steps under the Park Street bridge
@@ -135,6 +136,7 @@ STORY_PROPS = "056789<>?[]{}el"   # (l = a desk with a computer on it, 9 = its r
                                   # right half)  0 bookcase  [ filing cabinet  { office chair  < sofa (> = right half)
                                   # ? side table with the phone  ] armchair  } floor lamp  e bunk bed (the hostel)
 RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "2001")]   # the arcade's staff records
+JOHN_LOCKER = (21, 1)              # John's locker in the arcade's store room (quest.LOCKER_FRONT is the tile below)
 
 # ============================================================== shop interiors
 # Each shop you can walk into gets one of these rooms. Characters:
@@ -170,31 +172,41 @@ INTERIORS = {
         "#__________________#",
         "#########E##########",
     ],
-    # Professor Usher's office in the Wills Memorial Building: oak bookcases, filing cabinets, his desk, a rug
+    # Professor Usher's office in the Wills Memorial Building: oak bookcases, filing cabinets, his desk, rugs, a
+    # reading corner. (Big enough to search: the desk and computer stay top left - the time echo stands people there.)
     "usher": [
-        "############",
-        "#0000[[0000#",
-        "#______l9__#",
-        "#___{______#",
-        "#__89___y__#",
-        "#__________#",
-        "#________]_#",
-        "#__________#",
-        "#g________g#",
-        "#####E######",
+        "####################",
+        "#0000[[0000g0000[[0#",
+        "#______l9__________#",
+        "#___{______________#",
+        "#__89___y__________#",
+        "#__________________#",
+        "#________]________?#",
+        "#__________________#",
+        "#__0_0_0______<>___#",
+        "#__________________#",
+        "#____[[_______y____#",
+        "#__________________#",
+        "#g________________g#",
+        "#####E##############",
     ],
-    # ...and the same office once he's packed up to run: boxes, half-empty shelves, papers on the floor
+    # ...and the same office once he's packed up to run: boxes everywhere, half-empty shelves, papers on the floor.
+    # (What's where to look at: quest.HOTSPOTS - keep the two in step.)
     "usher_packed": [
-        "############",
-        "#0000[[0000#",
-        "#__7___l9__#",
-        "#___{___7__#",
-        "#__89______#",
-        "#_____7____#",
-        "#________]_#",
-        "#_7________#",
-        "#g_____77_g#",
-        "#####E######",
+        "####################",
+        "#0000[[0000g0000[[0#",
+        "#__7___l9_______7__#",
+        "#___{___7__________#",
+        "#__89______________#",
+        "#_____7_______7____#",
+        "#________]________?#",
+        "#_7________________#",
+        "#__0_0_0______<>___#",
+        "#_________7________#",
+        "#____[[_______7____#",
+        "#__7_______________#",
+        "#g_____77_______7_g#",
+        "#####E##############",
     ],
     # The Night Owl hostel on Park Street: somewhere to sleep, or wait for the right time (talk at the desk / a bed)
     "hostel": [
@@ -261,16 +273,19 @@ INTERIORS = {
         "#giiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiig#",
         "###E################################",
     ],
-    "arcade": [                      # the arcade, and the old store room through the gap on the right
-        "########################",
-        "#1a2a3a4aa1a2a3a4#55557#",
-        "#aaaaaaaaaaaaaaaa#iiiii#",
-        "#aaaaaaaaaaaaaaaa#iiiii#",
-        "#a4a3a2a1aaaaapaaiiii66#",
-        "#aaaaaaaaaaaQXQQa#iiiii#",
-        "#aaaaaaaaaaaaaaaa#7iii7#",
-        "#gaaaaaaaaaaaaaag#77ii7#",
-        "########E###############",
+    "arcade": [                      # the arcade, and the old store room through the gap on the right: staff lockers
+        "##################################",   # (John's is JOHN_LOCKER) and the staff records along the back
+        "#1a2a3a4aa1a2a3a4#666666i77i5555i#",   # wall, stacks of boxes and old filing cabinets in between
+        "#aaaaaaaaaaaaaaaa#iiiiiiiiiiiiiii#",   # (quest.py: LOCKER_FRONT, SHELF_FRONT, STORE_X, STORE_DOOR)
+        "#aaaaaaaaaaaaaaaa#i77i[[ii77ii7ii#",
+        "#a4a3a2a1aaaaapaaiiiiiiiiiiiiiiii#",
+        "#aaaaaaaaaaaQXQQa#ii7ii77iii[[i7i#",
+        "#aaaaaaaaaaaaaaaa#iiiiiiiiiiiiiii#",
+        "#a2a1a4a3aaaaaaaa#7ii77iii7ii77ii#",
+        "#aaaaaaaaaaaaaaaa#iiiiiiiiiiiiiii#",
+        "#aaaaaaaaaaaaaaaa#i7iii[[ii7iii7i#",
+        "#gaaaaaaaaaaaaaag#7iiii7iiiiii777#",
+        "########E#########################",
     ],
     "club": [
         "############",
@@ -1809,7 +1824,7 @@ class World:
             labels = RECORD_YEARS[min(x - first, len(RECORD_YEARS) - 1)]
             img = cache.setdefault(("records", labels), pa.records_shelf(labels))
         elif ch == "6":
-            tag = self.at(x - 1, y, " ") != "6"            # John's is the first one
+            tag = (x, y) == JOHN_LOCKER                     # John's, with his tape and initials
             img = cache.setdefault(("locker", tag), pa.locker(tag))
         elif ch == "7":
             img = cache.setdefault(("boxes", x + y, variant == "packed"), pa.boxes(x * 3 + y, variant == "packed" and (x + y) % 2 == 0))
@@ -2556,6 +2571,16 @@ def render_scene(screen, world, centre, extra=()):
     return ox, oy
 
 
+# TEMPORARY (for testing): the "skip >>" button in the bottom right corner (or F8) skips on to the next bit of the
+# story - see quest.Story.dev_skip. Set to False to hide it.
+DEV_SKIP = True
+
+
+def dev_skip_rect(size):
+    w, h = size
+    return pygame.Rect(w - 180, h - 34, 168, 24)
+
+
 # TEMPORARY (for testing): jump straight to the stairs instead of walking there. Delete when done.
 DEV_TELEPORTS = {
     pygame.K_F5: ("Frogmore Street", (9.6, 10.4), "left"),     # bottom of the Frogmore steps
@@ -2663,6 +2688,7 @@ def run_game(screen, clock, music, menu):
 
     icons = {name: getattr(pa, name) for name in ("card_icon", "newspaper_icon", "recorder_icon", "token_icon", "photo_icon",
                                                   "notes_icon", "folder_icon", "cutting_icon")}
+    icons["journal_icon"] = journal.journal_icon
     story = quest.Story(pocket, inventory.Item, icons, player,
                         dict(render=render_scene, make_world=scene_world, clock=clock_, places=PLACES))
     watch_cache = {}
@@ -2707,6 +2733,47 @@ def run_game(screen, clock, music, menu):
                     return shop, keys_now[pygame.K_a] or keys_now[pygame.K_LEFT]
         return None, False
 
+    def enter(shop):
+        """Walk in through a shop's door (or a door inside, like Usher's office off the Wills hall)."""
+        nonlocal world, place_name, fade
+        outside.append((world, player.pos.copy(), shop, place_name))
+        seed = shop["door"][0] * 31 + shop["door"][1] * 17
+        layout, variant = story.room(shop["kind"])
+        world = World("\n".join(INTERIORS[layout]), sheet,
+                      interior=dict(kind=shop["kind"], seed=seed, variant=variant), hour=clock_.hour)
+        story.entered(shop)
+        place_name = _brand(shop.get("brand", "")) or SHOP_NAMES[shop["kind"]]
+        if shop.get("brand"):
+            place_name += f" ({SHOP_NAMES[shop['kind']]})"
+        if shop.get("label"):
+            place_name = shop["label"][0].upper() + shop["label"][1:]
+        put_player(world.spawn, "up")
+        fade = 0.35
+
+    def dev_jump(dest):
+        """TESTING (the skip button): put the detective where the story's skipped to - out of any rooms, onto the
+        right map, in through the doors it lists, and onto the tile it says."""
+        nonlocal world, place_name, fade, door_lock, portal_lock, portal_hold
+        while outside:
+            world, _, _, place_name = outside.pop()
+        story.entered(None)
+        named_worlds[place_name] = world
+        place_name = dest["place"]
+        world = named_worlds.get(place_name) or World(PLACES[place_name], sheet, hour=clock_.hour)
+        story.place = place_name
+        for door in dest.get("doors") or ():
+            shop = world.doors.get(tuple(door))
+            if shop is None:
+                break
+            dx, dy = door
+            put_player(((dx + 0.5) * TILE, (dy + 1.5) * TILE), "up")
+            enter(shop)
+        if dest.get("tile"):
+            tx, ty = dest["tile"]
+            put_player((tx * TILE, ty * TILE), dest.get("facing"))
+        fade = 0.35
+        door_lock, portal_lock, portal_hold = True, True, True
+
     keys_now = pygame.key.get_pressed()
 
     while running:
@@ -2727,19 +2794,33 @@ def run_game(screen, clock, music, menu):
                 accumulator = 0.0
                 keys_now = pygame.key.get_pressed()
                 break
+            elif DEV_SKIP and ((event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                                and dev_skip_rect(screen.get_size()).collidepoint(event.pos))
+                               or (event.type == pygame.KEYDOWN and event.key == pygame.K_F8)):
+                if talk is not None:                          # TESTING: skip on to the next bit of the story
+                    talk["npc"].talking = False; talk = None
+                if pocket.reading:
+                    pocket.close_notebook()
+                pocket.open = False
+                dest = story.dev_skip()
+                if dest:
+                    dev_jump(dest)
             elif story.busy:                                  # a cut scene / the newspaper: click to go on
                 if talk is not None:
                     talk["npc"].talking = False; talk = None
                 if story.handle(event) == "quit":
                     running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
+            elif event.type == pygame.MOUSEBUTTONDOWN and not pocket.journal_open:
                 pass
             elif talk is None and pocket.handle(event):
-                pass                                          # the pocket / notebook used the key
+                pass                                          # the pocket / notebook / journal used the key
             elif event.type == pygame.KEYDOWN and event.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN) and talk is not None:
                 talk["i"] += 1
                 if talk["i"] >= len(talk["lines"]):
                     talk["npc"].talking = False; talk = None
+            elif event.type == pygame.KEYDOWN and event.key in (pygame.K_BACKSPACE, pygame.K_LEFT, pygame.K_q) \
+                    and talk is not None:
+                talk["i"] = max(0, talk["i"] - 1)              # back a line (not out of the conversation)
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and story.prompt(world, place_name, player):
                 story.interact(world, place_name, player)            # the story: a locker, a shelf, a question...
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and world.cabinet_near(player.pos) is not None:
@@ -2785,7 +2866,7 @@ def run_game(screen, clock, music, menu):
                         fade = 0.3
 
         keys = keys_now = pygame.key.get_pressed()
-        clock_.fast = bool(keys[pygame.K_t]) and not pocket.reading
+        clock_.fast = bool(keys[pygame.K_t]) and not pocket.typing
         clock_.update(min(clock.get_time() / 1000, 0.1))
         if pygame.time.get_ticks() / 1000 - last_clock_save > 20:
             clock_.save(); last_clock_save = pygame.time.get_ticks() / 1000
@@ -2864,19 +2945,7 @@ def run_game(screen, clock, music, menu):
                 near_shop = None
         shop_closed = near_shop is not None and not people.is_open(near_shop["kind"], clock_.hour)
         if entering and near_shop is not None and not door_lock and not shop_closed:
-            outside.append((world, player.pos.copy(), near_shop, place_name))
-            seed = near_shop["door"][0] * 31 + near_shop["door"][1] * 17
-            layout, variant = story.room(near_shop["kind"])
-            world = World("\n".join(INTERIORS[layout]), sheet,
-                          interior=dict(kind=near_shop["kind"], seed=seed, variant=variant), hour=clock_.hour)
-            story.entered(near_shop)
-            place_name = _brand(near_shop.get("brand", "")) or SHOP_NAMES[near_shop["kind"]]
-            if near_shop.get("brand"):
-                place_name += f" ({SHOP_NAMES[near_shop['kind']]})"
-            if near_shop.get("label"):
-                place_name = near_shop["label"][0].upper() + near_shop["label"][1:]
-            put_player(world.spawn, "up")
-            fade = 0.35
+            enter(near_shop)
         elif world.interior is not None and world.exit_tile is not None:
             ex, ey = world.exit_tile
             if player.hitbox().bottom > ey * TILE + TILE * 0.6:
@@ -2987,15 +3056,31 @@ def run_game(screen, clock, music, menu):
 
         # ---- HUD (not during a cut scene: the black bars and the dialogue have the screen)
         if story.cutscene is None:
-            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk / look  I pocket  N notebook  F lighter  T time  Esc menu"), (12, 10))
+            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk / look  I pocket  N notebook  J journal  F lighter  T time  Esc menu"), (12, 10))
         if story.cutscene is None:
-            minute = int(clock_.hours * 60)
-            face = watch_cache.get(minute)
+            # your watch - searching a room it's bigger, and spins on ahead: the faster, the closer you are (quest.py)
+            big = story.searching
+            shown_hours = clock_.hours + story.watch_offset
+            key = (int(shown_hours * 60), big)
+            face = watch_cache.get(key)
             if face is None:
-                watch_cache.clear(); face = watch_cache[minute] = daynight.watch_face(clock_.hour)
-            screen.blit(face, (w - face.get_width() - 12, 8))
+                if len(watch_cache) > 8:
+                    watch_cache.clear()
+                face = daynight.watch_face(shown_hours % 24)
+                if big:                                      # 1.5x: still whole art pixels (4 -> 6 screen pixels)
+                    face = pygame.transform.scale(face, (face.get_width() * 3 // 2, face.get_height() * 3 // 2))
+                watch_cache[key] = face
+            fx, fy = w - face.get_width() - 12, 8
+            if big:                                          # a glow round it that warms up as you get close
+                glow = pygame.Surface((face.get_width() + 12, face.get_height() + 12), pygame.SRCALPHA)
+                pulse = 0.6 + 0.4 * math.sin(pygame.time.get_ticks() / (260 - 180 * story.closeness))
+                hot = story.closeness
+                pygame.draw.ellipse(glow, (int(120 + 135 * hot), int(170 - 60 * hot), int(255 - 200 * hot),
+                                           int((30 + 80 * hot) * pulse)), glow.get_rect())
+                screen.blit(glow, (fx - 6, fy - 6))
+            screen.blit(face, (fx, fy))
             wt = hud(clock_.text() + ("  >>" if clock_.fast else ""))
-            screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
+            screen.blit(wt, (fx - wt.get_width() - 6, fy + face.get_height() // 2 - wt.get_height() // 2))
         machine_here = world.cabinet_near(player.pos) if world.interior is not None else None
         story_tip = None if (pocket.busy or talk is not None) else story.prompt(world, place_name, player)
         if story.busy:
@@ -3041,9 +3126,18 @@ def run_game(screen, clock, music, menu):
                     line = f"{line} {wd}".strip()
             screen.blit(talk_font.render(line, True, (236, 238, 244)), (bx + 16, yy))
             more = "E: next" if talk["i"] < len(talk["lines"]) - 1 else "E: done"
+            if talk["i"] > 0:
+                more = "Backspace: back   " + more
             m = hud(more); screen.blit(m, (bx + bw_ - m.get_width() - 10, by + bh_ - m.get_height() - 8))
         story.draw(screen, (ox, oy))
         pocket.draw(screen)
+        if DEV_SKIP:                                         # TESTING: the skip button (bottom right)
+            r = dev_skip_rect((w, h))
+            hover = r.collidepoint(pygame.mouse.get_pos())
+            pygame.draw.rect(screen, (90, 40, 40) if hover else (50, 24, 28), r)
+            pygame.draw.rect(screen, (230, 120, 110), r, 1)
+            t = font.render("DEV: skip >>  (F8)", True, (250, 220, 210))
+            screen.blit(t, (r.centerx - t.get_width() // 2, r.centery - t.get_height() // 2))
         if fade > 0:
             fade = max(0.0, fade - clock.get_time() / 1000)
             if fade_surf.get_size() != (w, h):

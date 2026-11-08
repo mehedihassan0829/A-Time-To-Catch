@@ -7,7 +7,12 @@ documents.py.
     search over the tiles you can actually walk between (up, down, left, right - so it goes round buildings, the water
     and the police tape, never straight through them). When the objective's on another map, or you're in a shop,
     it leads you to the way out / the way there first.
-  - Cut scenes: click (or E / Space / Enter) for the next line.
+  - Cut scenes: click (or E / Space / Enter) for the next line; Backspace / Left / Q (or "< back") for the one before,
+    as far back as the start of the scene or time echo you're in.
+  - Searching a room (Usher's packed-up office, the arcade's store room): the compass freezes and your watch spins
+    instead - the closer you are to what you're looking for, the faster. Once you've found it, it goes back to the time.
+  - The journal (journal.py): the suspects, crossed off as you speak to them, with your notes.
+  - TESTING: the "skip >>" button in the corner (or F8) jumps on to the next bit of the story (Story.dev_skip).
 """
 import heapq
 import math
@@ -18,6 +23,7 @@ import pygame
 import quest_script as S
 import documents
 import echo
+import journal
 
 TILE = 64
 
@@ -29,21 +35,41 @@ DOORS = {
     "hostel": ("Park Street", (38, 19), "hostel"),
 }
 OFFICE_DOOR = (2, 1)              # in the Wills hall: Professor Usher's door (stand below it and walk up)
-# Things to look at in Usher's packed-up office (the last visit): id -> (where to stand, how close, what it says)
+# Things to look at in Usher's packed-up office (the last visit; main.INTERIORS["usher_packed"]):
+# id -> (where to stand, in tiles, how close, what it says)
 HOTSPOTS = {
     "desk": ((4.0, 5.0), 1.25, "E: search the desk"),
     "computer": ((8.0, 3.0), 1.2, "E: use the computer"),
     "cabinet": ((6.0, 2.2), 0.95, "E: look in the filing cabinet"),
+    "cabinet2": ((17.0, 2.2), 0.95, "E: look in the filing cabinet"),
+    "cabinet3": ((6.0, 11.2), 0.95, "E: look in the filing cabinet"),
     "bookcase": ((2.3, 2.3), 1.2, "E: look at the bookcase"),
-    "bookcase2": ((10.0, 2.4), 0.9, "E: look at the bookcase"),
+    "bookcase2": ((13.5, 2.3), 1.2, "E: look at the bookcase"),
+    "bookcase3": ((5.5, 9.3), 1.4, "E: look at the bookcase"),
     "box1": ((3.5, 3.1), 0.8, "E: look in the box"),
     "box2": ((8.5, 4.2), 0.85, "E: look in the box"),
     "box3": ((6.5, 6.1), 0.85, "E: look in the box"),
+    "box4": ((16.5, 3.1), 0.85, "E: look in the box"),
+    "box5": ((14.5, 6.1), 0.85, "E: look in the box"),
+    "box6": ((2.5, 8.1), 0.85, "E: look in the box"),
+    "box7": ((10.5, 10.1), 0.85, "E: look in the box"),
+    "box8": ((14.5, 11.1), 0.85, "E: look in the box"),
+    "box9": ((3.5, 12.1), 0.85, "E: look in the box"),
+    "box10": ((8.0, 11.8), 1.0, "E: look in the boxes"),
+    "box11": ((16.5, 11.8), 1.0, "E: look in the box"),
     "armchair": ((9.5, 7.5), 1.0, "E: look at the armchair"),
+    "sofa": ((15.0, 9.4), 1.1, "E: look at the sofa"),
+    "sidetable": ((18.5, 7.3), 0.9, "E: look at the side table"),
 }
+CLUES = ("record1999", "ju_photo", "ticket")
+CLUE_SPOTS = {"record1999": "box4", "ju_photo": "desk", "ticket": "computer"}   # where each one is (HOTSPOTS)
 SEAGULL_FRONT = (3, 2)            # in the arcade: in front of the Seagull Bird machine on the back wall
-LOCKER_FRONT = (21, 5)            # in the store room: in front of John's locker
-SHELF_FRONT = (19, 2)             # in the store room: in front of the staff records
+STORE_X = 17.6                    # in the arcade: right of this (tiles) you're in the store room
+STORE_DOOR = (17, 4)              # the gap through to the store room
+LOCKER_FRONT = (21, 2)            # in the store room: in front of John's locker (main.JOHN_LOCKER)
+LOCKERS = (18, 23)                # the row of staff lockers along the store room's back wall (x from - to)
+SHELF_FRONT = (29, 2)             # in the store room: in front of the staff records (the shelf's x 28-31)
+SEARCH_RANGE = 14.0               # tiles: closer than this to what you're looking for and the watch quickens
 BUS_STOP = ("Park Street", (95, 29), (98, 29))   # the College Green bus stop: where you wait (tiles), the bus to Clifton Down
 VIEW_ITEMS = {"newspaper": "paper2026", "old_photo": "photo1999", "emily_photo": "photo1999", "cutting": "paper1999",
               "record1998": "record1998", "record1999": "record1999", "ju_photo": "ju_photo"}
@@ -214,6 +240,8 @@ class ScriptKeys:
 
 
 class Cutscene:
+    BOUNDARY = ("scene", "cut", "end_scene")     # going back stops at the line where a scene / time echo starts or ends
+
     def __init__(self, lines, story, then=None):
         self.lines = lines
         self.story = story
@@ -230,18 +258,51 @@ class Cutscene:
         self.walk_best = 1e9
         self.walk_field = None
         self.done = False
+        self.reached = -1                # the furthest line you've got to (lines up to here are only shown again)
+        self.seen = {}                   # line -> (document showing, black screen) as it was the first time
+        self.back_rect = None            # the "< back" button (on screen), while there is one
         self._enter_line()
 
     def line(self):
         return self.lines[self.i]
 
+    def stage(self, i):
+        ln = self.lines[i]
+        return ln[2] if len(ln) > 2 else {}
+
     def _enter_line(self):
-        ln = self.line()
-        stage = ln[2] if len(ln) > 2 else {}
+        stage = self.stage(self.i)
         self.shown = 0.0
         self.t_line = 0.0
+        if self.i <= self.reached:       # been here already (gone back): show it as it was, do nothing again
+            self.auto = None
+            self.shown = float(len(self.line()[1]))
+            self.story.replay(stage, self.seen.get(self.i))
+            return
+        self.reached = self.i
         self.auto = stage.get("glitch") or stage.get("auto")
         self.story.stage_direction(stage, self)
+        self.seen[self.i] = (self.story.view, self.story.black)
+
+    def first(self):
+        """How far back you can go from here: the start of this scene, or of the time echo you're in (or the line the
+        echo ended on) - never back out of it."""
+        j = self.i
+        while j > 0 and not any(k in self.stage(j) for k in self.BOUNDARY):
+            j -= 1
+        return j
+
+    @property
+    def can_back(self):
+        return not self.done and self.auto is None and self.i > self.first()
+
+    def back(self):
+        if not self.can_back:
+            return False
+        self.story.settle(self)
+        self.i -= 1
+        self._enter_line()
+        return True
 
     def advance(self):
         if self.done:
@@ -346,6 +407,13 @@ class Story:
         self.ticket_time = None             # the train on Usher's ticket (fixed once you've seen it)
         self.choice = None                  # a question with options on screen (the hostel: sleep until when?)
         self.hide_player = False            # the detective's on the bus
+        self.journal = journal.Journal(S.SUSPECTS)
+        pocket.journal = self.journal
+        self.journal_queue = []             # (heading, suspect): the journal opens with these once the scene's over
+        self.searching = False              # searching a room: the compass is frozen and the watch spins
+        self.closeness = 0.0                # 0 (far off) .. 1 (right there): how fast the watch spins
+        self.watch_offset = 0.0             # hours the watch has spun on ahead of the real time
+        self._spots_left = None
         self.cutscene = Cutscene(S.OPENING, self)
 
     # ---- what's going on
@@ -382,8 +450,8 @@ class Story:
             if not self._open("cafe"):
                 text = "Emily comes in at 6pm and the café's shut - rest at the Night Owl hostel until then"
         if ob["id"] == "search":
-            n = sum(1 for k in ("record1999", "ju_photo", "ticket") if k in self.flags)
-            text = f"Search Professor Usher's office - walk up to things, E to look ({n} of 3 clues found)"
+            n = sum(1 for k in CLUES if k in self.flags)
+            text = f"Search Professor Usher's office - walk up to things, E to look ({n} of {len(CLUES)} clues found)"
         if ob["id"] in ("arcade", "high_score", "locker", "records") and not self._open("arcade"):
             text += " (the arcade opens at 10:00 - rest at the Night Owl hostel, or hold T)"
         return text
@@ -431,14 +499,54 @@ class Story:
             return
         if self.busy:
             return
+        if self.journal_queue and not self.later and not self.pocket.busy:   # just met a suspect: the journal
+            heading, focus = self.journal_queue.pop(0)
+            self.journal.show(heading, focus)
+            return
         self._check(world, place, player)
         if self.cutscene:
             return
+        self._watch(world, player, dt)
         ob = self.objective()
         if ob is None:
             self.compass.steps = None
             return
+        if self.searching:                                  # the compass is frozen: the watch shows the way
+            return
         self.compass.point(world, (player.pos.x, player.pos.y), self.targets(world, place), dt)
+
+    # ---- searching a room: the watch spins faster the closer you get (hot or cold)
+    def search_spots(self, world, player):
+        """What you're looking for in this room, as (x, y) tiles - or None if you're not searching anything here."""
+        o = self.oid()
+        kind = (world.interior or {}).get("kind")
+        if o == "search" and kind == "usher":
+            return [HOTSPOTS[CLUE_SPOTS[c]][0] for c in CLUES if c not in self.flags]
+        if o in ("locker", "records") and kind == "arcade" and player.pos.x > STORE_X * TILE:
+            fx, fy = LOCKER_FRONT if o == "locker" else (SHELF_FRONT[0] + 0.5, SHELF_FRONT[1])
+            return [(fx + 0.5, fy + 0.5)]
+        return None
+
+    def _watch(self, world, player, dt):
+        spots = self.search_spots(world, player)
+        was = self.searching
+        self.searching = spots is not None
+        if not self.searching:
+            self.watch_offset, self.closeness, self._spots_left = 0.0, 0.0, None   # back to the real time
+            return
+        if not was:
+            key = f"watch_hint_{self.oid()}"
+            if key not in self.flags:
+                self.flags.add(key)
+                self.hint = [S.WATCH_HINT, 7.0]
+        if self._spots_left is not None and len(spots) < self._spots_left:
+            self.watch_offset = 0.0                        # found one: the watch settles back to the time
+        self._spots_left = len(spots)
+        px, py = player.pos.x / TILE, player.pos.y / TILE
+        d = min((math.hypot(px - sx, py - sy) for sx, sy in spots), default=SEARCH_RANGE)
+        self.closeness = max(0.0, 1.0 - d / SEARCH_RANGE)
+        # turns of the minute hand a second: a slow drift far off, a blur right next to it (1 turn = 1 hour)
+        self.watch_offset += 0.05 * 60 ** self.closeness * dt
 
     def _prepare(self, world):
         """A new place/room: make the people the story needs (and take away the ones who've gone)."""
@@ -540,18 +648,16 @@ class Story:
             if bed or self._near_staff(world, player):
                 return "E: get some rest (choose how long)"
         if o == "search" and kind == "usher":
-            best = None
-            for hid, ((hx, hy), r, text) in HOTSPOTS.items():
-                d = math.hypot(px - hx * TILE, py - hy * TILE)
-                if d < r * TILE and (best is None or d < best[0]):
-                    best = (d, hid, text)
-            if best:
-                if best[1] == "desk" and "record1999" in self.flags:
-                    return "E: open the desk drawers" if "ju_photo" not in self.flags else "E: search the desk"
-                return best[2]
-        if o == "locker" and kind == "arcade" and near(*LOCKER_FRONT, 1.3):
-            return "E: open John's locker"
-        if o == "records" and kind == "arcade" and py < 3.4 * TILE and 17.5 * TILE < px < 22.5 * TILE:
+            hid = self._hotspot(player)
+            if hid:
+                return HOTSPOTS[hid][2]
+        if o == "locker" and kind == "arcade":
+            if near(*LOCKER_FRONT, 0.8):
+                return "E: open John's locker"
+            if py < 3.2 * TILE and LOCKERS[0] * TILE <= px < (LOCKERS[1] + 1) * TILE:
+                return "E: try this locker"
+        if o == "records" and kind == "arcade" and py < 3.4 * TILE and \
+                (SHELF_FRONT[0] - 1.5) * TILE < px < (SHELF_FRONT[0] + 3.5) * TILE:
             return "E: look through the staff records"
         if o == "find_emily" and kind == "cafe" and self._near_staff(world, player) and \
                 self._cafe_key() not in self.cafes_asked:
@@ -575,10 +681,12 @@ class Story:
             self.rest_menu()
             return True
         if self.oid() == "search" and (world.interior or {}).get("kind") == "usher":
-            self._search(p, world, player)
+            self._search(player)
             return True
         if p.startswith("E: buy"):
             self.start(S.NEWSPAPER_BUY, lambda: self.open_view("paper2026"), talking=self.ids.get("shopkeeper"))
+        elif p.startswith("E: try this locker"):
+            self.start(S.OTHER_LOCKER)
         elif p.startswith("E: open John's"):
             self.start(S.LOCKER, lambda: self.complete())
         elif p.startswith("E: look through"):
@@ -607,25 +715,38 @@ class Story:
         return True
 
     # ---- searching Usher's office (the last visit): it's up to you
-    def _search(self, p, world, player):
-        if p == "E: use the computer":
-            if not self.ticket_time:                 # the next train, from now (time stops at the computer, and
-                m = (int(self.clock.hour * 60) + 50) // 5 * 5      # it's fixed once you've found the ticket)
-                documents.TICKET["time"] = f"{(m // 60) % 24:02d}:{m % 60:02d}"
+    def _hotspot(self, player):
+        """The thing in Usher's office you're standing at (HOTSPOTS), or None."""
+        px, py = player.pos.x, player.pos.y
+        best = None
+        for hid, ((hx, hy), r, _) in HOTSPOTS.items():
+            d = math.hypot(px - hx * TILE, py - hy * TILE)
+            if d < r * TILE and (best is None or d < best[0]):
+                best = (d, hid)
+        return best[1] if best else None
+
+    def _set_ticket_time(self):
+        if not self.ticket_time:                     # the next train, from now (time stops at the computer, and
+            m = (int(self.clock.hour * 60) + 50) // 5 * 5          # it's fixed once you've found the ticket)
+            documents.TICKET["time"] = f"{(m // 60) % 24:02d}:{m % 60:02d}"
+
+    def _search(self, player):
+        hid = self._hotspot(player)
+        if hid is None:
+            return
+        if hid == CLUE_SPOTS["ticket"]:
+            self._set_ticket_time()
             self.want_computer = True
             return
-        if p in ("E: search the desk", "E: open the desk drawers"):
-            if "record1999" not in self.flags:
-                self.start(S.SEARCH_RECORD, self._search_progress)
-            elif "ju_photo" not in self.flags:
-                self.start(S.SEARCH_DRAWER, self._search_progress)
-            else:
-                self.start(S.SEARCH_DESK_EMPTY)
+        scenes = {"record1999": S.SEARCH_RECORD, "ju_photo": S.SEARCH_DRAWER}
+        for clue, lines in scenes.items():
+            if CLUE_SPOTS[clue] == hid and clue not in self.flags:
+                self.start(lines, self._search_progress)
+                return
+        if hid == "desk":
+            self.start(S.SEARCH_DESK_EMPTY)
             return
-        px, py = player.pos.x, player.pos.y
-        hid = min((h for h in HOTSPOTS if h not in ("desk", "computer")),
-                  key=lambda h: math.hypot(px - HOTSPOTS[h][0][0] * TILE, py - HOTSPOTS[h][0][1] * TILE))
-        self.start(S.SEARCH_LOOKS[hid.rstrip("2")])
+        self.start(S.SEARCH_LOOKS.get(hid) or S.SEARCH_LOOKS.get(hid.rstrip("0123456789")) or S.SEARCH_LOOKS["box"])
 
     def computer_closed(self, found):
         """Back from Usher's computer. found = you opened the ticket in his browser history."""
@@ -635,11 +756,11 @@ class Story:
             self.start(S.SEARCH_TICKET, self._search_progress)
 
     def _search_progress(self):
-        if all(k in self.flags for k in ("record1999", "ju_photo", "ticket")):
+        if all(k in self.flags for k in CLUES):
             self.start(S.SEARCH_DONE, lambda: self.complete())
         else:
-            n = sum(1 for k in ("record1999", "ju_photo", "ticket") if k in self.flags)
-            self.say(f"{n} of 3 clues found. Keep looking.", 3.0)
+            n = sum(1 for k in CLUES if k in self.flags)
+            self.say(f"{n} of {len(CLUES)} clues found. Keep looking.", 3.0)
 
     # ---- passing the time (the hostel)
     def rest_menu(self):
@@ -749,9 +870,11 @@ class Story:
             return door(name)
         if o in ("high_score", "locker", "records"):
             if kind == "arcade":
-                self.compass.final = "up"
-                return {"high_score": (SEAGULL_FRONT,), "locker": (LOCKER_FRONT,),
-                        "records": (SHELF_FRONT, (SHELF_FRONT[0] + 1, SHELF_FRONT[1]))}[o]
+                if o == "high_score":
+                    self.compass.final = "up"
+                    return (SEAGULL_FRONT,)
+                self.compass.final = "right"                         # to the store room: then you're on your own
+                return (STORE_DOOR,)
             return door("arcade")
         if o == "find_emily":
             if kind == "cafe":
@@ -834,6 +957,8 @@ class Story:
     def start(self, lines, then=None, talking=None):
         if self.pocket.reading:
             self.pocket.close_notebook()
+        if self.journal.open:
+            self.journal.close()
         self.pocket.open = False
         if talking:
             a = self._actor(talking)
@@ -863,10 +988,29 @@ class Story:
         for actor, _ in list(self.walkers):
             self._arrive(actor, snap=True)
 
+    def replay(self, stage, seen):
+        """Back on a line you've already seen (you went back): show it as it was - the document, the black screen,
+        who's facing who - without doing any of it again (no walking, no items, no new scene)."""
+        self.view, self.black = seen if seen is not None else (None, bool(stage.get("black")))
+        if self.scene is not None:
+            for key in ("ring", "flame"):
+                if key in stage:
+                    setattr(self.scene, key, stage[key])
+        if "face" in stage:
+            self.face_player(stage["face"])
+
     def stage_direction(self, stage, cs):
         self.black = bool(stage.get("black"))
         if not stage:
             return
+        if "meet" in stage and not self.journal.met(stage["meet"]):     # spoken to a suspect: cross them off
+            self.journal.meet(stage["meet"])
+            if "journal" in self.flags:
+                self.journal_queue.append((S.JOURNAL_MET.format(name=self.journal.name(stage["meet"])), stage["meet"]))
+        if stage.get("journal") == "intro":                              # the journal, open on the suspects
+            self.give("journal")
+            focus = next((s["id"] for s in self.journal.suspects if s["met"] and not s["crossed"]), None)
+            self.journal_queue.append((S.JOURNAL_INTRO, focus))
         if "scene" in stage:
             self.scene = echo.Scene(stage["scene"], self.hooks["make_world"], self.hooks["render"], self.player,
                                     self._cafe_seed())
@@ -928,8 +1072,12 @@ class Story:
         it = self.Item(g, name, desc, self.icons[icon])
         if g in VIEW_ITEMS:
             it.use = (lambda v=VIEW_ITEMS[g]: self.open_view(v))
+        if g == "journal":
+            it.use = lambda: self.journal.show()
         self.pocket.add(it)
-        if g == "daniel_number":
+        if g == "journal":
+            self.got.append(["+ Journal (in your pocket - J to open it)", 3.5])
+        elif g == "daniel_number":
             nb = self.pocket.notebook
             if S.DANIEL_NUMBER not in "".join(nb.pages):
                 note = f"Daniel Shaw (journalist) - {S.DANIEL_NUMBER}. Knew John Harper. Said look at the arcade."
@@ -1070,12 +1218,112 @@ class Story:
                         c["sel"] = i
             return None
         if self.cutscene:
-            if advance:
-                self.cutscene.advance()
+            cs = self.cutscene
+            back = (ev.type == pygame.KEYDOWN and ev.key in (pygame.K_BACKSPACE, pygame.K_LEFT, pygame.K_q)) or \
+                   (ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1 and cs.back_rect is not None
+                    and cs.back_rect.collidepoint(ev.pos))
+            if back:
+                cs.back()
+            elif advance:
+                cs.advance()
             return None
         if self.reading is not None:
             if advance or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
                 self.reading = None
+        return None
+
+    # ================================================================ TESTING: skip on to the next bit of the story
+    def dev_skip(self):
+        """The "skip >>" button (F8). In a scene: finish it (everything it does still happens - items, people walking
+        off, the journal). Otherwise: do whatever the objective wanted doing, and start the next scene. Returns where
+        the game should put the detective - dict(place, doors=[door tiles to walk through, in order], tile, facing) -
+        or None to stay put."""
+        self.choice = None
+        self.reading = None
+        self.hint = None
+        self.journal_queue.clear()
+        if self.journal.open:
+            self.journal.close()
+        if self.fade > 0:
+            self.fade = 0.0
+            if self.fade_fn:
+                fn, self.fade_fn = self.fade_fn, None
+                fn()
+            return None
+        if self.cutscene:
+            cs = self.cutscene
+            for _ in range(len(cs.lines) + 1):
+                if cs.done:
+                    break
+                cs.shown = len(cs.line()[1])
+                cs.advance()
+            self.journal_queue.clear()                      # skipping: don't stop to open the journal
+            if self.cutscene is cs:
+                self._end_cutscene()
+            return None
+        if self.later:                                      # something about to happen: make it happen now
+            items, self.later = self.later, []
+            for _, fn in items:
+                fn()
+            return None
+        o = self.oid()
+
+        def inside(name, tile=None, facing="up"):
+            place, door, _ = DOORS[name]
+            return dict(place=place, doors=[door] + ([OFFICE_DOOR] if name == "usher" else []), tile=tile, facing=facing)
+
+        def soon(fn):
+            self.later.append([0.3, fn])                    # once the game's moved you and the room's ready
+
+        if o == "crime_scene":                              # next to the officer: the scene starts by itself
+            return dict(place="Harbourside", tile=(44.4, 52.6), facing="up")
+        if o in ("arcade", "usher", "usher2"):              # walking in starts the scene
+            return inside("usher" if o.startswith("usher") else "arcade")
+        if o == "high_score":
+            soon(lambda: self.won(S.JOHN_MACHINE))
+            return inside("arcade", (SEAGULL_FRONT[0] + 0.5, SEAGULL_FRONT[1] + 0.6))
+        if o == "locker":
+            soon(lambda: self.oid() == "locker" and self.start(S.LOCKER, lambda: self.complete()))
+            return inside("arcade", (LOCKER_FRONT[0] + 0.5, LOCKER_FRONT[1] + 0.6))
+        if o == "records":
+            soon(lambda: self.oid() == "records" and self.start(S.RECORDS, lambda: self.complete()))
+            return inside("arcade", (SHELF_FRONT[0] + 1.0, SHELF_FRONT[1] + 0.6))
+        if o == "daniel":                                   # next to his desk: the scene starts by itself
+            return inside("gazette", (7.5, 7.2))
+        if o == "find_emily":                               # the café where they know her: the last question
+            street = self.places.get("Park Street")
+            shop = next((s for s in getattr(street, "SHOPS", []) if s["kind"] == "cafe"), None)
+            if shop is None:
+                return None
+            self.cafes_asked = [("Park Street", ("skipped", k)) for k in range(len(S.CAFE_ASKS) - 1)]
+
+            def ask():
+                if self.oid() != "find_emily":
+                    return
+                self.cafes_asked.append(self._cafe_key())
+                self.emily_cafe = (self.shop_place, self.shop)
+                self.start(S.CAFE_ASKS[-1], lambda: self.complete(), talking=self.ids.get("barista"))
+            soon(ask)
+            return dict(place="Park Street", doors=[tuple(shop["door"])], tile=None, facing="up")
+        if o == "wait_emily" and self.emily_cafe:           # six o'clock, in her café: she walks in
+            h = self.clock.hours
+            day = int(h // 24) * 24
+            if not (18 <= h % 24 < 19.5):
+                self.clock.hours = day + 18.0 if h % 24 < 18 else day + 24 + 18.0
+            ep, shop = self.emily_cafe
+            return dict(place=ep, doors=[tuple(shop["door"])], tile=None, facing="up")
+        if o == "search":                                   # all three clues
+            self.give("record1999")
+            self.give("ju_photo")
+            self._set_ticket_time()
+            self.ticket_time = documents.TICKET["time"]
+            self.flags.add("ticket")
+            self.start(S.SEARCH_DONE, lambda: self.complete())
+            return None
+        if o == "station":                                  # straight to Clifton Down
+            soon(lambda: self.start(S.ENDING, self._the_end))
+            p, a, _ = BUS_STOP
+            return dict(place=p, tile=(a[0] + 0.5, a[1] + 0.5), facing="down")
         return None
 
     # ================================================================ drawing
@@ -1106,7 +1354,9 @@ class Story:
         if self.cutscene:
             self._draw_cutscene(screen, f, w, h, offset)
         elif self.reading is None and self.fade <= 0:
-            if self.objective() and self.compass.steps is not None:
+            if self.objective() and self.searching:
+                self._draw_compass(screen, f, w, frozen=True)
+            elif self.objective() and self.compass.steps is not None:
                 self._draw_compass(screen, f, w)
             elif self.objective():
                 self._draw_label(screen, f, w, 40)
@@ -1192,13 +1442,13 @@ class Story:
         box.blit(t, (16, 9))
         screen.blit(box, (w // 2 - box.get_width() // 2, 210))
 
-    def _draw_compass(self, screen, f, w):
+    def _draw_compass(self, screen, f, w, frozen=False):
         cx, cy, r = w // 2, 62, 25
         dial = pygame.Surface((r * 2 + 8, r * 2 + 8), pygame.SRCALPHA)
         c = r + 4
         pygame.draw.circle(dial, (20, 22, 30, 230), (c, c), r + 3)
-        pygame.draw.circle(dial, (196, 160, 70), (c, c), r + 3, 3)
-        pygame.draw.circle(dial, (236, 228, 206), (c, c), r - 2)
+        pygame.draw.circle(dial, (150, 190, 220) if frozen else (196, 160, 70), (c, c), r + 3, 3)
+        pygame.draw.circle(dial, (214, 230, 240) if frozen else (236, 228, 206), (c, c), r - 2)
         for k in range(8):
             a = k * math.pi / 4
             ln = 6 if k % 2 == 0 else 3
@@ -1212,7 +1462,25 @@ class Story:
         pygame.draw.polygon(dial, (200, 50, 50), [tip, (c + side[0], c + side[1]), (c - side[0], c - side[1])])
         pygame.draw.polygon(dial, (60, 64, 80), [tail, (c + side[0], c + side[1]), (c - side[0], c - side[1])])
         pygame.draw.circle(dial, (196, 160, 70), (c, c), 4)
+        if frozen:                                          # iced over: the needle's stuck where it was
+            ice = pygame.Surface(dial.get_size(), pygame.SRCALPHA)
+            pygame.draw.circle(ice, (200, 230, 255, 110), (c, c), r - 2)
+            for k in range(6):
+                a = k * math.pi / 3 + 0.3
+                p1 = (c + math.cos(a) * (r - 4), c + math.sin(a) * (r - 4))
+                p2 = (c + math.cos(a) * (r - 13), c + math.sin(a) * (r - 13))
+                pygame.draw.line(ice, (255, 255, 255, 200), p1, p2, 2)
+            dial.blit(ice, (0, 0))
         screen.blit(dial, (cx - c, cy - c))
+        if frozen:
+            t1 = f["label"].render(self.label(), True, (250, 240, 214))
+            t2 = f["small"].render("Compass frozen - watch your watch: faster = closer", True, (190, 214, 236))
+            bw = max(t1.get_width(), t2.get_width()) + 24
+            box = pygame.Surface((bw, 44), pygame.SRCALPHA)
+            box.fill((20, 22, 32, 205))
+            box.blit(t1, ((bw - t1.get_width()) // 2, 5)); box.blit(t2, ((bw - t2.get_width()) // 2, 24))
+            screen.blit(box, (cx - bw // 2, cy + r + 8))
+            return
         metres = self.compass.steps * 2.5
         dist = f"{int(metres)} m" if metres < 1000 else f"{metres / 1000:.1f} km"
         t1 = f["label"].render(self.label(), True, (250, 240, 214))
@@ -1254,7 +1522,7 @@ class Story:
         narration = who == ""
         font = f["narr"] if narration else f["text"]
         lines = self._wrap(font, text, bw - 48)
-        bh = 40 + len(lines) * (font.get_linesize() + 2) + (26 if not narration else 10)
+        bh = 40 + len(lines) * (font.get_linesize() + 2) + (26 if not narration else (26 if cs.can_back else 10))
         bx, by = (w - bw) // 2, h - bar - bh - 14
         # keep the box off the people talking
         feet = []
@@ -1293,6 +1561,14 @@ class Story:
             more = "click to continue >" if cs.i < len(cs.lines) - 1 else "click to finish >"
             m = f["small"].render(more, True, (190, 186, 170))
             screen.blit(m, (bx + bw - m.get_width() - 14, by + bh - m.get_height() - 8))
+        cs.back_rect = None
+        if cs.can_back:                                    # "< back": a line back (not out of the scene / echo)
+            m = f["small"].render("< back (Backspace)", True, (220, 214, 196))
+            r = pygame.Rect(bx + 10, by + bh - m.get_height() - 12, m.get_width() + 12, m.get_height() + 6)
+            pygame.draw.rect(screen, (50, 46, 40), r)
+            pygame.draw.rect(screen, (150, 130, 100), r, 1)
+            screen.blit(m, (r.x + 6, r.y + 3))
+            cs.back_rect = r
         # a little marker over whoever's speaking
         pos = None
         if self.scene is not None:

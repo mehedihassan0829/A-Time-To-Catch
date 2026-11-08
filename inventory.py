@@ -2,6 +2,7 @@
 
   I        open / close your pocket.  Left/Right (or A/D) to choose, Enter or E to use.
   N        open the notebook straight away.
+  J        open the journal (the suspects - see journal.py), once the story's given it to you.
   F        flick your lighter on / off (a little light to see by at night).
   In the notebook: just type. Enter = new line, Backspace = delete,
   Page Up / Page Down (or Ctrl + Left/Right) = turn the page, Esc = close.
@@ -109,15 +110,25 @@ class Pocket:
         self.lighter_on = False
         self.open = False            # pocket panel showing
         self.reading = False         # notebook open
+        self.journal = None          # the suspects' journal (journal.Journal), set by the story
         self.sel = 0
         self.font = None
         self.small = None
         self.blink = 0.0
 
     @property
+    def journal_open(self):
+        return self.journal is not None and self.journal.open
+
+    @property
     def busy(self):
-        """True while the pocket or notebook is open (the player shouldn't walk about)."""
-        return self.open or self.reading
+        """True while the pocket, notebook or journal is open (the player shouldn't walk about)."""
+        return self.open or self.reading or self.journal_open
+
+    @property
+    def typing(self):
+        """True while you're writing (the notebook or the journal's notes): letter keys are words, not commands."""
+        return self.reading or self.journal_open
 
     def add(self, item):
         if len(self.items) < POCKET_SLOTS:
@@ -136,6 +147,8 @@ class Pocket:
 
     def handle(self, ev):
         """Returns True if the event was used here."""
+        if self.journal_open:
+            return self.journal.handle(ev)
         if self.reading:
             nb = self.notebook
             if ev.type == pygame.TEXTINPUT:
@@ -155,6 +168,9 @@ class Pocket:
                 self.open = not self.open; return True
             if ev.key == pygame.K_n:
                 self.open_notebook(); return True
+            if ev.key == pygame.K_j and self.journal is not None and any(it.id == "journal" for it in self.items):
+                self.open = False
+                self.journal.show(); return True
             if ev.key == pygame.K_f and any(it.id == "lighter" for it in self.items):
                 self.lighter_on = not self.lighter_on; return True
             if self.open:
@@ -197,6 +213,8 @@ class Pocket:
             self._draw_pocket(screen, w, h)
         if self.reading:
             self._draw_notebook(screen, w, h)
+        if self.journal_open:
+            self.journal.draw(screen)
 
     def _draw_pocket(self, screen, w, h):
         slot = 64
