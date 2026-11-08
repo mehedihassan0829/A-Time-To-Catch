@@ -20,6 +20,12 @@ Stage directions (all optional):
   view="paper1999"         show a document full screen (see documents.py); view=None puts it away
   ring=True / False        (the opening) the phone ringing
   flame=True / False       (the opening) the lighter
+  meet="martin"            the detective has now spoken to this suspect (see SUSPECTS): when the scene's over the
+                           journal opens at their page, so you can cross them off and jot down a note
+  journal="intro"          when the scene's over, the journal goes in your pocket and opens on the suspects
+
+Back (Backspace / Left / Q, or the "< back" button) goes back a line - but only as far as the start of the scene or
+time echo you're in, never back out of it.
 """
 
 DANIEL_NUMBER = "07700 900 417"
@@ -73,7 +79,23 @@ ITEMS = {   # id -> (name, description, icon function name in pixel_art.py)
                    "folder_icon"),
     "ju_photo": ("Photograph of Jack and Usher", "Two young men in arcade uniforms. On the back: \"I know what you did Peter, "
                  "come clear this up with me - Jack\". Enter to look at it.", "photo_icon"),
+    "journal": ("Journal", "Your case journal: the suspects, crossed off once you've spoken to them, with your notes. "
+                "Enter to open it.", "journal_icon"),
 }
+
+# ------------------------------------------------------------------ the suspects (the journal)
+# look = which of people.SUSPECTS they're drawn as. Cross them off once you've spoken to them (meet= in a scene).
+SUSPECTS = [
+    dict(id="daniel", name="Daniel Shaw", role="Journalist at The Gazette", look="daniel"),
+    dict(id="martin", name="Martin Bell", role="John's co-worker at the arcade", look="martin"),
+    dict(id="emily", name="Emily Carter", role="John's close friend", look="emily"),
+    dict(id="usher", name="Prof. Peter Usher", role="John's professor, University of Bristol", look="usher_old"),
+]
+JOURNAL_INTRO = "These will be the suspects you are investigating."
+JOURNAL_MET = "You've spoken to {name}. Cross them off and jot down a note."
+
+# ------------------------------------------------------------------ searching a room: the compass freezes, the watch spins
+WATCH_HINT = "Your compass has frozen. Watch your watch instead: the closer you get, the faster it spins."
 
 # ------------------------------------------------------------------ the opening: the detective's flat, the night before
 OPENING = [
@@ -99,7 +121,7 @@ CRIME_SCENE = [
                        "Apparently, he knew the victim."),
     ("", "The detective approaches him.", dict(walk="approach", face="crime_daniel")),
     ("Detective", "Daniel Shaw?"),
-    ("Daniel", "That's me. You're the detective investigating John?"),
+    ("Daniel", "That's me. You're the detective investigating John?", dict(meet="daniel")),
     ("Detective", "You knew him?"),
     ("Daniel", "We spoke a few times. He contacted me about some research he was doing into Bristol's history. "
                "Old buildings, businesses, things that have disappeared over the years."),
@@ -126,7 +148,8 @@ RECORDER = [
     ("", "Footsteps. Someone is coming up behind him.", dict(move=("shadow", (47.6, 51.6)))),
     ("", "A figure, all in shadow, reaches out -", dict(glitch=1.4)),
     ("", "BACK TO THE PRESENT.", dict(black=True)),
-    ("Detective", "Daniel said John kept mentioning the arcade where he worked. That's where I'll start.", dict(end_scene=True)),
+    ("Detective", "Daniel said John kept mentioning the arcade where he worked. That's where I'll start.",
+     dict(end_scene=True, journal="intro")),
 ]
 
 # ------------------------------------------------------------------ the arcade
@@ -139,7 +162,7 @@ ARCADE_HINT = "HINT: beat the high score on SEAGULL BIRD - someone might come ov
 
 MARTIN = [
     ("", "Someone from behind the counter comes over.", dict(walk_to_player="martin")),
-    ("Martin", "Not bad! That was John's high score you just beat. Nobody's been able to beat it in months."),
+    ("Martin", "Not bad! That was John's high score you just beat. Nobody's been able to beat it in months.", dict(meet="martin")),
     ("Detective", "You heard about the murder? It's unfortunate, isn't it?"),
     ("Martin", "Yeah, I was the last one working with him."),
     ("Detective", "How was he acting before?"),
@@ -151,6 +174,7 @@ MARTIN = [
     ("Martin", "Never asked. You could try looking through his locker. He kept a few personal things in there."),
     ("", "Martin gives the detective access to John's locker, in the store room at the back."),
 ]
+OTHER_LOCKER = [("", "Locked. No tape, no initials on it - this one isn't John's.")]
 
 LOCKER = [
     ("", "The detective opens John's locker.", dict(view="locker")),
@@ -172,7 +196,8 @@ USHER_OFFICE = [
     ("Usher", "Perhaps a fresh pair of eyes would help."),
     ("John", "Actually, I'll show it to Emily over coffee. She usually spots things I miss."),
     ("", "The Echo ends.", dict(end_scene=True)),
-    ("Detective", "Emily... over coffee. If she's a regular somewhere, someone in one of these cafés will know her."),
+    ("Detective", "Emily... over coffee. If she's a regular somewhere, someone in one of these cafés will know her.",
+     dict(meet="usher")),
 ]
 
 # ------------------------------------------------------------------ looking for Emily in the cafés (in the order you ask)
@@ -194,7 +219,7 @@ CAFE_ASKED_AGAIN = [("Barista", "Like I said - sorry, can't help.")]
 EMILY = [
     ("", "Six o'clock. The door opens, and a young woman walks in.", dict(walk_to_player="emily")),
     ("Detective", "Emily Carter?"),
-    ("Emily", "...Yes? Who's asking?"),
+    ("Emily", "...Yes? Who's asking?", dict(meet="emily")),
     ("Detective", "I'm the detective looking into John Harper's death. I'm sorry."),
     ("Emily", "John was going to show me something. We'd been looking through my dad's old photographs."),
     ("Emily", "I've got the one he was so interested in. I still don't know what he saw in it."),
@@ -244,11 +269,15 @@ USHER_GONE = [   # walking in the last time - then it's up to you to search the 
          "It looks like he was packing to leave."),
     ("Detective", "Where are you going, Professor?"),
     ("", "Search the office. Walk up to things and press E to look at them."),
+    ("", "The detective's compass has frozen. But his watch has started to spin - faster, the closer he gets to "
+         "something that matters."),
 ]
 
-# things to look at in the packed-up office: E at each. (The three that matter: the desk, its drawers, the computer.)
+# things to look at in the packed-up office: E at each. (The three that matter - which box, the desk drawers, the
+# computer - are in quest.CLUE_SPOTS.)
 SEARCH_RECORD = [
-    ("", "On the desk, under a pile of papers: a binder marked 1999.", dict(view="record1999", give="record1999")),
+    ("", "In one of the packing boxes, under bundles of lecture notes: a binder marked 1999.",
+     dict(view="record1999", give="record1999")),
     ("", "The staff list for 1999. P. Usher... and J. Harper."),
     ("Detective", "Jack Harper. Harper... John was Jack's son.", dict(view=None)),
     ("Detective", "John wasn't researching Bristol's history. He was looking for the man who killed his father."),
@@ -280,14 +309,28 @@ SEARCH_TICKET = [
     ("", "A train ticket, bought this morning. One way, from Clifton Down - leaving today.", dict(view="ticket")),
     ("Detective", "He's running.", dict(view=None)),
 ]
-SEARCH_LOOKS = {   # the other things in the room (a look each - some of it might help, some won't)
+SEARCH_LOOKS = {   # the other things in the room (a look each - some of it might help, some won't). bookcase2 etc.
     "bookcase": [("", "Half the shelves are bare. Gaps where books have been pulled out and packed - all on old Bristol.")],
+    "bookcase3": [("", "A free-standing bookcase, stripped bare. Dust outlines where the books stood.")],
     "cabinet": [("", "Department paperwork, exam scripts from years back. One drawer's been emptied completely.")],
+    "cabinet2": [("", "Locked, and the key's gone. Scratches round the lock - it's been opened in a hurry.")],
+    "cabinet3": [("", "Student files, A to M. Nothing about the arcade.")],
     "box1": [("", "Lecture notes, bundled with string. 'Lost businesses of the harbourside, 1980-2000.'")],
     "box2": [("", "A kettle, two mugs and a framed degree certificate: Peter Usher, BA, University of Bristol, 2001.")],
     "box3": [("", "Clothes, thrown in. Packed in a hurry.")],
+    "box4": [("", "The box the 1999 binder was in. Nothing else in it now.")],
+    "box5": [("", "Framed photographs wrapped in newspaper: graduations, a conference in Bath. Nobody you recognise.")],
+    "box6": [("", "Old exam papers, marked in red ink. Years of them.")],
+    "box7": [("", "Books on Bristol's lost industries. His name's on half the spines.")],
+    "box8": [("", "Cables, a desk lamp, an old phone charger.")],
+    "box9": [("", "Tea bags, a packet of biscuits, a tin full of paper clips.")],
+    "box10": [("", "Shoes, a folded umbrella, a scarf in university colours.")],
+    "box11": [("", "Empty. Still flat-packed.")],
+    "box": [("", "More packing. Nothing that helps.")],
     "armchair": [("", "A coat's been left over the armchair. In the pocket, a bus timetable - folded open at the "
                       "page for Clifton Down.")],
+    "sofa": [("", "A worn leather sofa. Down the side of the cushion: a pen and a few coins.")],
+    "sidetable": [("", "A ring from a coffee cup, still damp. He wasn't gone long.")],
     "chair": [("", "His desk chair, pushed back. The seat's still warm.")],
 }
 SEARCH_DONE = [
