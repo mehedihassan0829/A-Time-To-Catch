@@ -39,9 +39,14 @@ class Car:
 
 
 class Traffic:
-    def __init__(self, world):
+    def __init__(self, world, side=None):
         self.world = world
-        rows = [y for y in range(world.h) if sum(1 for x in range(world.w) if world.grid[y][x] in "=zv") > world.w * 0.6]
+        self.side = side                  # a road that ends at a junction (the harbourside): dict(rows, end)
+        self.vt = None
+        if side:
+            rows = list(range(side["rows"][0], side["rows"][1] + 1))
+        else:
+            rows = [y for y in range(world.h) if sum(1 for x in range(world.w) if world.grid[y][x] in "=zv") > world.w * 0.6]
         self.ok = len(rows) >= 4
         if not self.ok:
             return
@@ -55,9 +60,10 @@ class Traffic:
         self.length = pa.car(CAR_COLOURS[0], True).get_width() - 8
         self.cars = []
         rng = random.Random(7)
+        far = side["end"] * TILE - self.length * 2 if side else world.pixel_w - 100
         for lane in (1, -1):
             x = rng.uniform(0, 300)
-            while x < world.pixel_w - 100:
+            while x < far:
                 self.cars.append(Car(lane, x, rng.choice(CAR_COLOURS)))
                 x += rng.uniform(420, 900) * (3.5 if (world.hour >= 23 or world.hour < 6) else 1.0)
         self.spawn_timer = {1: 0.0, -1: 0.0}
@@ -69,6 +75,72 @@ class Traffic:
                     self.bus = dict(x=(x + 0.5) * TILE - 24, y=(bottom + 1) * TILE - 6)
         self.bus_imgs = [pa.bus(i) for i in range(2)] if self.bus else []
         self.t = 0.0
+
+    # ---- a junction with lights where this road meets a road running up/down the screen (the harbourside)
+    JUNCTION = (("main", 9.0), ("main_amber", 2.0), ("all_red", 2.0), ("side", 7.0), ("side_amber", 1.5), ("all_red", 2.0))
+
+    def join(self, vt):
+        """Link this road to the one it meets: eastbound cars turn left (up the screen) onto it when their light
+        is green, and some of the cars coming up it turn left (west) onto this road."""
+        self.vt = vt
+        self.up_lane = next(i for i, (x, d) in enumerate(vt.lanes) if d < 0)
+        self.up_x = vt.lanes[self.up_lane][0]
+        self.jt = 0.0
+        y0, y1 = self.side["rows"]
+        vt.hold_lines = {i: (y0 * TILE - 6 if d > 0 else (y1 + 1) * TILE + 6) for i, (x, d) in enumerate(vt.lanes)}
+        vt.light = lambda: self.junction_state()
+
+    def junction_state(self):
+        t = self.jt % sum(d for _, d in self.JUNCTION)
+        for name, d in self.JUNCTION:
+            if t < d: return name
+            t -= d
+        return "main"
+
+    def junction_light(self, who):
+        """The colour of a junction light: who = 'main' (the road up/down the screen) or 'side' (this road)."""
+        st = self.junction_state()
+        if st == who: return "green"
+        if st == who + "_amber": return "amber"
+        if st == "all_red" and self.jt % sum(d for _, d in self.JUNCTION) > 18 and who == "main":
+            return "redamber"
+        return "red"
+
+    def _slot_free(self):
+        """Room in the up lane for a car turning into it (nothing in the way just above or below)."""
+        vt, ly = self.vt, self.lane_y[1]
+        new_y = ly + 10
+        for c in vt.cars:
+            if c.lane == self.up_lane and new_y - vt.length - 40 < c.y < new_y + vt.length + 40:
+                return False
+        return True
+
+    def _junction(self, dt):
+        vt = self.vt
+        self.jt += dt
+        ly_e, ly_w = self.lane_y[1], self.lane_y[-1]
+        for car in [c for c in self.cars if c.lane == 1 and c.x >= self.up_x]:     # turned left onto the main road
+            self.cars.remove(car)
+            vc = VCar(self.up_lane, ly_e + 10, car.colour, VMAX * 0.85)
+            vc.v = car.v * 0.7; vc.turn = False
+            vt.cars.append(vc)
+        for vc in [c for c in vt.cars if c.lane == self.up_lane]:                  # coming up from the south
+            if getattr(vc, "turn", None) is None:
+                vc.turn = self.rng.random() < 0.45
+            if vc.turn and vc.y - vt.length / 2 <= ly_w - 20:
+                if all(c.x < self.up_x - self.length * 2 for c in self.cars if c.lane == -1):
+                    vt.cars.remove(vc)
+                    car = Car(-1, self.up_x, vc.colour); car.v = vc.v * 0.7
+                    self.cars.append(car)
+                else:
+                    vc.turn = False                                                # no room: carry straight on
+
+    def signal_state(self, cx, foot, tx):
+        """What a traffic light shows: a junction light (side road / main road) or a pelican crossing's."""
+        if self.vt is not None and tx >= self.side["end"] - 1:
+            on_side = tx < self.side["end"] and foot < self.side["rows"][0] * TILE
+            return self.junction_light("side" if on_side else "main")
+        return self.light_for(tx)
 
     def light_for(self, x_tile):
         best = min(self.crossings, key=lambda c: abs(c.x0 - x_tile * TILE)) if self.crossings else None
@@ -97,6 +169,13 @@ class Traffic:
                     st = cr.state
                     if dist >= -2 and (st in ("red", "redamber") or (st == "amber" and dist > car.v * car.v / (2 * BRAKE) + 6)):
                         limit = min(limit, dist)
+                if self.vt is not None and lane == 1:              # the lights at the junction
+                    line = self.side["end"] * TILE - 6
+                    dist = line - front
+                    light = self.junction_light("side")
+                    stop = light == "red" or (light == "amber" and dist > car.v * car.v / (2 * BRAKE) + 6) or not self._slot_free()
+                    if dist >= -4 and stop:
+                        limit = min(limit, max(0.0, dist))
                 if player_rect.colliderect(band):                # don't run anyone over
                     dist = ((player_rect.left if lane == 1 else player_rect.right) - front) * lane - 26
                     if dist > -L:
@@ -106,6 +185,11 @@ class Traffic:
                 car.v = min(target, car.v + ACCEL * dt) if car.v < target else max(target, car.v - BRAKE * dt)
                 car.x += car.v * lane * dt
             # leave at one end, come back at the other
+            if self.vt is not None and lane == -1:
+                for car in list(cars):
+                    if car.x + L < -60:
+                        self.cars.remove(car)
+                continue                                          # westbound cars only come round the corner
             for car in list(cars):
                 if (lane == 1 and car.x - L > W + 60) or (lane == -1 and car.x + L < -60):
                     self.cars.remove(car)
@@ -116,6 +200,10 @@ class Traffic:
                     self.cars.append(Car(lane, entry, self.rng.choice(CAR_COLOURS)))
                 quiet = hour >= 23 or hour < 6                    # far fewer cars late at night
                 self.spawn_timer[lane] = self.rng.uniform(7.0, 16.0) if quiet else self.rng.uniform(1.5, 5.0)
+                if self.side:                                      # a quieter road that ends at a junction
+                    self.spawn_timer[lane] *= 2.6
+        if self.vt is not None:
+            self._junction(dt)
 
     def lights(self, dark):
         """Headlights, tail lights, the lit-up bus and the traffic lights, once it gets dark."""
@@ -129,7 +217,7 @@ class Traffic:
             out.append((self.bus["x"], self.bus["y"] - 90, 210, (255, 236, 190), 0.6 * dark))
         col = {"green": (60, 255, 120), "amber": (255, 180, 40), "red": (255, 50, 40), "redamber": (255, 120, 40)}
         for cx, foot, tx in self.signals:
-            out.append((cx, foot - 92, 40, col[self.light_for(tx)], 0.9 * dark))
+            out.append((cx, foot - 92, 40, col[self.signal_state(cx, foot, tx)], 0.9 * dark))
         return out
 
     def solids(self):
@@ -155,7 +243,7 @@ class Traffic:
             if view.colliderect(pygame.Rect(pos, img.get_size())):
                 yield img, pos, foot
         for cx, foot, tx in self.signals:
-            st = self.light_for(tx)
+            st = self.signal_state(cx, foot, tx)
             img = self.sig_img.get(st)
             if img is None:
                 img = self.sig_img[st] = pa.traffic_signal(st)
@@ -194,6 +282,8 @@ class VerticalTraffic:
                 self.cars.append(VCar(i, y, self.rng.choice(CAR_COLOURS), VMAX * 0.85))
                 y += self.rng.uniform(380, 800)
         self.timer = [0.0 for _ in self.lanes]
+        self.light = None                     # set when this road has a junction with lights (Traffic.join)
+        self.hold_lines = {}
 
     def _image(self, colour, down):
         key = (colour, down)
@@ -216,6 +306,14 @@ class VerticalTraffic:
                 limit = 1e9
                 if k > 0:
                     limit = abs(cars[k - 1].y - car.y) - L - 30
+                if self.light is not None:                          # traffic lights at a junction
+                    st = self.light()
+                    front = car.y if d > 0 else car.y - L
+                    line = self.hold_lines[i]
+                    dist = (line - front) * d
+                    if dist >= -4 and (st in ("all_red", "side", "side_amber") or
+                                       (st == "main_amber" and dist > car.v * car.v / (2 * BRAKE) + 6)):
+                        limit = min(limit, max(0.0, dist))
                 if self.solid and player_rect.colliderect(band):
                     front = car.y if d > 0 else car.y - L
                     dist = ((player_rect.top - front) if d > 0 else (front - player_rect.bottom)) - 24

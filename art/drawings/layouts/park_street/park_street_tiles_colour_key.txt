@@ -1,0 +1,35 @@
+park_street_tiles_1px_per_tile.png: one pixel = one tile, 166 across x 62 down.
+Paint with these exact colours (RGB) and send it back - the map can be rebuilt from it.
+
+  150,160,190   #96a0be   terraces / shops / hotel
+  214,196,150   #d6c496   Wills Memorial Building
+  120,124,136   #787c88   church
+  176, 92, 70   #b05c46   City Hall
+  226,216,186   #e2d8ba   Bristol Cathedral
+  112,106,100   #706a64   stone wall / pier
+  128,128,126   #80807e   bridge walls (concrete)
+   60, 46, 70   #3c2e46   OMG nightclub
+   44,104,120   #2c6878   water
+   70, 72, 78   #46484e   road
+  236,236,236   #ececec   zebra crossing
+  214,206,190   #d6cebe   paving / pavement
+  126,178, 96   #7eb260   grass
+   44, 46, 54   #2c2e36   road below (Frogmore St, in the cutting)
+  150,140,128   #968c80   steps
+   30, 30, 34   #1e1e22   iron railings
+  120,150,170   #7896aa   fountain basin
+  120,170,220   #78aadc   City Hall fountain
+   70,150, 70   #469646   tree
+  200, 90, 40   #c85a28   autumn tree (acer)
+  250,200, 60   #fac83c   street lamp
+  170,100, 50   #aa6432   bench
+   40, 40, 44   #28282c   bin
+   40,110, 90   #286e5a   statue / sculpture
+  230, 50, 50   #e63232   traffic light
+  140,140,150   #8c8c96   bike rack
+  200,160,110   #c8a06e   cafe table
+   90,170, 90   #5aaa5a   plant pot
+  200, 30, 30   #c81e1e   post box
+  100,130,180   #6482b4   bus stop
+   90,120,200   #5a78c8   parked car
+  255,255,255   #ffffff   where you start

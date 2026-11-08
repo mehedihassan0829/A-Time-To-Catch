@@ -257,7 +257,8 @@ def building_height(b):
     if st == "U":
         floors = max(2, min(5, int(b.get("floors", 4))))
         return GROUND_H + floors * FLOOR_H + 2
-    return {"V": 46, "A": 42, "M": 48, "G": 42, "W": 52, "C": 44, "K": 44, "D": 54, "X": 30, "O": 44, "P": 22}[st]
+    return {"V": 46, "A": 42, "M": 48, "G": 42, "W": 52, "C": 44, "K": 44, "D": 54, "X": 30, "O": 44, "P": 22,
+            "R": 46, "B": 40, "Z": 30}[st]
 
 
 TOWER_H = 104        # logical height of the Wills Memorial tower facade
@@ -462,12 +463,23 @@ def _pointed(s, x, y, w, h, frame, glass=GLASS, tracery=True, head=None):
     P(s, GLASS_L, x + max(0, w // 2 - 1), y + w // 2 + 1)
 
 
+_HARBOUR_FRONTS = {}
+
+
 def facade_landmark(b, lx, bw, tower):
     st = b["style"]
     if st in ("X", "P"):                                            # board-marked concrete (bridge walls, piers)
         return _concrete(b, lx, bw)
     if st == "O":                                                   # OMG nightclub
         return _omg_front(bw, b.get("variant", 0)).subsurface((lx * L, 0, L, building_height(b))).copy()
+    if st in ("R", "B", "Z"):                                       # harbourside: arcade, brick sheds, restaurant shed
+        key = (st, bw, b["seed"])
+        img = _HARBOUR_FRONTS.get(key)
+        if img is None:
+            Hh = building_height(b)
+            img = _HARBOUR_FRONTS[key] = (_arcade_front(bw, Hh) if st == "R" else
+                                         _warehouse_front(bw, Hh, b["seed"]) if st == "B" else _shed_front(bw, Hh, b["seed"]))
+        return img.subsurface((lx * L, 0, L, img.get_height())).copy()
     rng = random.Random(b["seed"] * 7 + lx)
     H = TOWER_H if tower else building_height(b)
     s = canvas(L, H)
@@ -783,14 +795,34 @@ def roof_tile(b, mask, tower, chimney, dormer, seed):
         R(s, shade(lead, 1.25), 0, 7, L, 1); R(s, shade(lead, 0.8), 0, 8, L, 1)   # ridge
         speckle(s, rng, [shade(lead, 0.94)], 0.05)
         edge = (206, 202, 190)
-    elif st in ("H", "C", "K") or (st == "G"):
-        slate = SLATE if st != "C" else (86, 92, 104)
+    elif st == "R":                                                # the arcade's white tensile roof (the old aquarium's)
+        base = (234, 238, 242)                                     # one fabric peak per tile, pulled up on a mast
+        for y in range(L):
+            for x in range(L):
+                dx, dy = x - 7.5, y - 7.5
+                if abs(dy) >= abs(dx):
+                    k = 1.0 if dy < 0 else 0.86
+                else:
+                    k = 0.95 if dx < 0 else 0.9
+                if abs(abs(dx) - abs(dy)) < 0.6:
+                    k -= 0.06                                      # the seams down from the peak
+                s.set_at((x, y), shade(base, k))
+        R(s, (150, 156, 170), 7, 7, 2, 2); P(s, (90, 96, 110), 7, 7)  # mast cap
+        R(s, shade(base, 0.8), 0, L - 1, L, 1); R(s, shade(base, 0.8), L - 1, 0, 1, L)
+        edge = (60, 52, 80)
+    elif st == "Z":                                                # corrugated metal
+        base = (112, 128, 140)
+        for x in range(0, L, 2):
+            R(s, shade(base, 1.1 if x % 4 == 0 else 0.92), x, 0, 2, L)
+        edge = (80, 92, 104)
+    elif st in ("H", "C", "K", "B") or (st == "G"):
+        slate = SLATE if st not in ("C", "B") else ((86, 92, 104) if st == "C" else (78, 84, 92))
         for i, y in enumerate(range(0, L, 3)):                     # rows of slates
             R(s, shade(slate, rng.uniform(0.96, 1.04)), 0, y, L, 3)
             R(s, shade(slate, 1.22), 0, y, L, 1)
             for x in range((i % 2) * 2, L, 4):
                 P(s, shade(slate, 0.78), x, y + 1); P(s, shade(slate, 0.78), x, y + 2)
-        edge = tuple(b["stone"]) if b.get("stone") else ((226, 220, 204) if st == "K" else BATH_PALE)
+        edge = (150, 66, 50) if st == "B" else (tuple(b["stone"]) if b.get("stone") else ((226, 220, 204) if st == "K" else BATH_PALE))
     else:                                                          # lead flats with rolls
         lead = (150, 156, 164)
         R(s, lead, 0, 0, L, L)
@@ -2154,3 +2186,236 @@ def greyed(img, k=0.7):
     g.set_alpha(int(255 * k))
     out.blit(g, (0, 0))
     return out
+
+
+# ============================================================== the harbour: flowing water, pontoons, boats
+WATER_FRAMES = 8
+_WATER_PAL = {
+    "clear": [(44, 104, 168), (56, 124, 186), (70, 142, 200), (98, 170, 220), (170, 214, 240)],
+    "harbour": [(30, 72, 84), (38, 88, 100), (48, 104, 114), (70, 128, 134), (150, 196, 196)],
+}
+
+
+WATER_SPAN = 4                     # the water pattern covers 4 x 4 tiles before it repeats
+
+
+def water_frames(kind="clear"):
+    """Moving water, 8 frames, each a 4 x 4 tile sheet (so the pattern doesn't look like a grid).
+    Slow swells roll across it and little ripples catch the light, grow and fade as the frames go round."""
+    pal = _WATER_PAL.get(kind, _WATER_PAL["clear"])
+    S = L * WATER_SPAN
+    tau = math.tau
+    rng = random.Random(4242 if kind == "harbour" else 4343)
+    ripples = [(rng.randrange(S), rng.randrange(S), rng.randrange(WATER_FRAMES), rng.choice((2, 3, 3, 4))) for _ in range(46)]
+    out = []
+    for f in range(WATER_FRAMES):
+        ph = f / WATER_FRAMES
+        s = canvas(S, S)
+        for y in range(S):
+            for x in range(S):
+                v = (math.sin(tau * ((x + 2 * y) / S - ph)) * 0.6 +
+                     math.sin(tau * ((3 * x - y) / S + ph)) * 0.4 +
+                     math.sin(tau * ((x + 5 * y) / S * 1 - 2 * ph)) * 0.25)
+                c = pal[0] if v < -0.7 else pal[1] if v < 0.15 else pal[2] if v < 0.85 else pal[3]
+                s.set_at((x, y), c)
+        for rx, ry, off, ln in ripples:                              # a ripple: grows, drifts right, fades
+            p = (f + off) % WATER_FRAMES
+            if p >= 6:
+                continue
+            w = (1, 2, ln, ln, 2, 1)[p]
+            col = pal[4] if p in (2, 3) else pal[3]
+            for k in range(w):
+                s.set_at(((rx + p + k) % S, ry), col)
+            if p in (2, 3) and ln >= 3:
+                s.set_at(((rx + p + 1) % S, (ry + 1) % S), shade(pal[2], 1.05))
+        out.append(up(s).convert())
+    return out
+
+
+def water_edge(mask, frame):
+    """Foam lapping against the quay on the sides where the water meets land (mask: 1 top, 2 right, 4 bottom, 8 left)."""
+    s = canvas(L, L)
+    foam, foam2, wall = (226, 238, 236), (176, 206, 206), (92, 86, 80)
+    lap = (0, 1, 1, 2, 1, 1, 0, 0)[frame % 8]
+    for side in (1, 2, 4, 8):
+        if not mask & side:
+            continue
+        for i in range(L):
+            wob = lap + ((i + frame) % 4 == 0)
+            if side == 1:
+                R(s, wall, i, 0, 1, 2); R(s, foam, i, 2, 1, wob); P(s, foam2, i, 2 + wob)
+            elif side == 4:
+                R(s, foam, i, L - 1 - wob, 1, wob); P(s, foam2, i, L - 2 - wob)
+            elif side == 8:
+                R(s, foam, 0, i, 1 + wob, 1); P(s, foam2, 1 + wob, i)
+            else:
+                R(s, foam, L - 1 - wob, i, 1 + wob, 1); P(s, foam2, L - 2 - wob, i)
+    return up(s).convert_alpha()
+
+
+def pontoon_tile(v=0):
+    """Floating pontoon: grey-brown boards with dark gaps and a metal edge strip."""
+    rng = random.Random(8800 + v)
+    s = canvas(L, L)
+    base = (150, 132, 108)
+    for i, y in enumerate(range(0, L, 4)):
+        R(s, shade(base, rng.uniform(0.9, 1.06)), 0, y, L, 3)
+        R(s, (40, 46, 50), 0, y + 3, L, 1)                           # gap between boards
+        for x in range(rng.randrange(2, 6), L, rng.randrange(5, 9)):
+            P(s, shade(base, 0.8), x, y + 1)
+    for y in range(1, L, 8):                                          # bolts
+        P(s, (190, 190, 196), 1, y); P(s, (190, 190, 196), L - 2, y)
+    return up(s).convert()
+
+
+BOAT_COLOURS = [(196, 40, 44), (30, 90, 70), (36, 60, 120), (240, 236, 226), (230, 180, 40), (40, 40, 48)]
+
+
+def boat(kind, colour, frame=0, flip=False):
+    """A moored boat, side-on to the camera (bow pointing right), bobbing on the water. 4 frames."""
+    bob = (0, 1, 1, 0)[frame % 4]
+    hull_d = shade(colour, 0.7)
+    if kind == "narrow":                                             # narrowboat: long, painted, with a cabin
+        W, H = 44, 16
+        s = canvas(W, H + 2)
+        y0 = 6 + bob
+        R(s, OUTLINE, 0, y0 + 3, W, 6); R(s, colour, 1, y0 + 4, W - 2, 3); R(s, hull_d, 1, y0 + 7, W - 2, 1)
+        R(s, (240, 210, 90), 1, y0 + 4, W - 2, 1)                     # coach line
+        R(s, OUTLINE, 6, y0 - 3, W - 14, 7); R(s, (36, 80, 60), 7, y0 - 2, W - 16, 5)
+        for wx in range(10, W - 10, 6):
+            R(s, (200, 220, 230), wx, y0 - 1, 3, 2)
+        R(s, (90, 60, 40), W - 6, y0 - 4, 2, 2)                       # chimney
+        P(s, (150, 150, 156), W - 6, y0 - 5)
+    elif kind == "yacht":                                            # small sailing boat with its sail furled
+        W, H = 30, 28
+        s = canvas(W, H + 2)
+        y0 = 18 + bob
+        pygame.draw.polygon(s, OUTLINE, [(0, y0), (W - 1, y0), (W - 5, y0 + 7), (4, y0 + 7)])
+        pygame.draw.polygon(s, colour, [(1, y0 + 1), (W - 2, y0 + 1), (W - 6, y0 + 6), (5, y0 + 6)])
+        R(s, (240, 240, 244), 2, y0, W - 4, 1)
+        R(s, OUTLINE, 9, y0 - 4, 11, 5); R(s, (232, 232, 236), 10, y0 - 3, 9, 3); R(s, (120, 170, 210), 12, y0 - 3, 5, 1)
+        R(s, (200, 200, 206), 14, 0 + bob, 1, y0)                     # mast
+        R(s, (40, 70, 140), 9, y0 - 6, 10, 2)                         # furled sail on the boom
+    elif kind == "ferry":                                            # the yellow-and-blue harbour ferry
+        W, H = 40, 22
+        s = canvas(W, H + 2)
+        y0 = 12 + bob
+        pygame.draw.polygon(s, OUTLINE, [(0, y0), (W - 1, y0), (W - 6, y0 + 8), (3, y0 + 8)])
+        pygame.draw.polygon(s, (250, 200, 40), [(1, y0 + 1), (W - 2, y0 + 1), (W - 7, y0 + 7), (4, y0 + 7)])
+        R(s, (30, 70, 140), 3, y0 + 5, W - 10, 2)
+        R(s, OUTLINE, 6, y0 - 9, 26, 10); R(s, (240, 240, 236), 7, y0 - 8, 24, 8)
+        for wx in range(8, 30, 5):
+            R(s, (120, 170, 210), wx, y0 - 6, 3, 3)
+        R(s, (30, 70, 140), 6, y0 - 10, 26, 2)
+    else:                                                            # little motor launch
+        W, H = 24, 14
+        s = canvas(W, H + 2)
+        y0 = 8 + bob
+        pygame.draw.polygon(s, OUTLINE, [(0, y0), (W - 1, y0 + 1), (W - 4, y0 + 6), (2, y0 + 6)])
+        pygame.draw.polygon(s, colour, [(1, y0 + 1), (W - 2, y0 + 2), (W - 5, y0 + 5), (3, y0 + 5)])
+        R(s, OUTLINE, 5, y0 - 4, 8, 5); R(s, (220, 220, 224), 6, y0 - 3, 6, 3); R(s, (120, 170, 210), 7, y0 - 3, 3, 1)
+    # ripples round the waterline
+    rip = (170, 210, 214)
+    wl = s.get_height() - 3
+    for x in range(-2 + frame % 3, s.get_width(), 6):
+        R(s, rip, max(0, x), wl + (frame + x) % 2, 3, 1)
+    img = up(s).convert_alpha()
+    return pygame.transform.flip(img, True, False) if flip else img
+
+
+def arcade_carpet(v=0):
+    """That arcade carpet: dark blue with neon squiggles and stars."""
+    rng = random.Random(9100 + v)
+    s = canvas(L, L)
+    s.fill((22, 20, 52))
+    cols = [(240, 60, 180), (60, 220, 240), (250, 220, 60), (120, 240, 120)]
+    for _ in range(3):
+        c = rng.choice(cols); x, y = rng.randrange(1, L - 4), rng.randrange(1, L - 3)
+        for k in range(4):
+            P(s, c, x + k, y + (k % 2))
+    for _ in range(2):
+        c = rng.choice(cols); x, y = rng.randrange(1, L - 2), rng.randrange(1, L - 2)
+        P(s, c, x, y); P(s, c, x + 1, y); P(s, c, x, y + 1)
+    speckle(s, rng, [(36, 32, 76)], 0.12)
+    return up(s).convert()
+
+
+# ---- building fronts for the harbourside
+def _arcade_front(bw, H):
+    """The old aquarium, now an arcade: glass front, the cabinets glowing inside, a big neon sign."""
+    W = bw * L
+    s = canvas(W, H)
+    R(s, (40, 34, 58), 0, 0, W, H)                                   # dark cladding
+    R(s, (28, 24, 42), 0, 0, W, 14)                                  # sign band
+    # glass curtain wall
+    gl = (54, 70, 104)
+    R(s, OUTLINE, 3, 16, W - 6, H - 17)
+    R(s, gl, 4, 17, W - 8, H - 18)
+    for x in range(4, W - 4, 8):
+        R(s, (90, 96, 116), x, 17, 1, H - 18)                        # mullions
+    R(s, (90, 96, 116), 4, 30, W - 8, 1)
+    rng = random.Random(bw * 13)
+    cols = [(240, 60, 180), (60, 220, 240), (250, 220, 60), (120, 240, 120), (250, 120, 50)]
+    for x in range(8, W - 10, 11):                                   # the machines inside, screens lit
+        c = rng.choice(cols)
+        R(s, (20, 18, 30), x, H - 14, 6, 13); R(s, c, x + 1, H - 12, 4, 3); R(s, shade(c, 0.6), x + 1, H - 6, 4, 1)
+    # doors in the middle
+    dx = (bw // 2) * L + 2
+    R(s, OUTLINE, dx - 1, H - 15, 14, 15); R(s, (150, 200, 230), dx, H - 14, 12, 14)
+    R(s, (60, 70, 90), dx + 5, H - 14, 2, 14); R(s, (220, 220, 230), dx + 3, H - 8, 1, 3); R(s, (220, 220, 230), dx + 8, H - 8, 1, 3)
+    # neon sign
+    name = "HARBOUR ARCADE"
+    tw = text_width(name)
+    sc = 2 if tw * 2 + 8 < W else 1
+    sign = canvas(tw + 2, 7)
+    draw_text(sign, name, 0, 0, (255, 90, 200))
+    sign = pygame.transform.scale(sign, (sign.get_width() * sc, sign.get_height() * sc))
+    sx = (W - sign.get_width()) // 2
+    glow = canvas(sign.get_width() + 4, sign.get_height() + 4)
+    glow.fill((255, 90, 200, 60))
+    s.blit(glow, (sx - 2, 1))
+    s.blit(sign, (sx, 3))
+    for x in range(2, W - 2, 4):                                     # chaser bulbs along the top
+        P(s, (250, 230, 120) if (x // 4) % 2 else (90, 230, 250), x, 0)
+    return s
+
+
+def _warehouse_front(bw, H, seed):
+    """Red-brick transit sheds (the Watershed): tall round-arched windows, cream bands."""
+    W = bw * L
+    s = canvas(W, H)
+    brick, mortar, cream = (150, 66, 50), (120, 52, 40), (226, 206, 170)
+    R(s, brick, 0, 0, W, H)
+    rng = random.Random(seed)
+    for y in range(0, H, 3):
+        R(s, mortar, 0, y, W, 1)
+        for x in range((y // 3 % 2) * 3, W, 6):
+            P(s, mortar, x, y + 1)
+    speckle(s, rng, [shade(brick, 0.9), shade(brick, 1.08)], 0.08)
+    R(s, cream, 0, 3, W, 2); R(s, cream, 0, H - 14, W, 1)
+    for x in range(3, W - 8, 12):                                    # round-arched windows
+        R(s, OUTLINE, x, 9, 8, 22); R(s, (60, 80, 100), x + 1, 10, 6, 20)
+        circle(s, OUTLINE, x + 4, 11, 4); circle(s, (60, 80, 100), x + 4, 11, 3)
+        R(s, (60, 80, 100), x + 1, 11, 6, 3)
+        R(s, cream, x - 1, 31, 10, 1)
+        R(s, (110, 130, 150), x + 4, 10, 1, 20); P(s, (150, 190, 220), x + 2, 13)
+    for x in range(8, W - 10, 36):                                   # doors on the quay
+        R(s, OUTLINE, x, H - 12, 12, 12); R(s, (60, 70, 74), x + 1, H - 11, 10, 11); R(s, (90, 100, 104), x + 6, H - 11, 1, 11)
+    return s
+
+
+def _shed_front(bw, H, seed):
+    """A long harbourside shed turned into restaurants: steel frame, big windows, warm light inside."""
+    W = bw * L
+    s = canvas(W, H)
+    steel, glass, warm = (70, 84, 96), (60, 78, 92), (250, 196, 110)
+    R(s, steel, 0, 0, W, H)
+    R(s, (150, 160, 168), 0, 0, W, 3)
+    R(s, OUTLINE, 2, 6, W - 4, H - 7); R(s, glass, 3, 7, W - 6, H - 8)
+    rng = random.Random(seed)
+    for x in range(3, W - 3, 7):
+        R(s, steel, x, 7, 1, H - 8)
+        if rng.random() < 0.7:
+            R(s, warm, x + 2, H - 10, 3, 3)                         # lamps / tables inside
+    R(s, steel, 3, 18, W - 6, 1)
+    return s

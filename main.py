@@ -6,14 +6,15 @@ All the art is drawn in code (pixel_art.py, people.py).
 Controls:
     WASD / Arrow keys  - move
     Shift              - run
-    E                  - talk / go into a shop
+    E                  - talk / play an arcade machine
     I / N / F          - pocket / notebook / lighter
     T (hold)           - make time pass faster
     Tab                - switch character
     M                  - switch map (Park Street / Queens Road)
     F1                 - show / hide hitboxes (handy when editing the map)
     F3                 - show / hide FPS
-    F5 / F6            - (testing) jump to the Frogmore steps / the Park Street stairwell
+    F5 / F6 / F7       - (testing) jump to the Frogmore steps / the Park Street stairwell / the arcade
+    In the arcade: walk up to a machine and press E to play it (Esc or Backspace to step away)
     Esc                - quit
 """
 
@@ -26,6 +27,7 @@ def _ensure_libraries():
     """First run on a new computer: install whatever's in requirements.txt, then carry on."""
     try:
         import pygame  # noqa: F401
+        import pygame_widgets  # noqa: F401   (MVB Kombat in the arcade uses it)
         return
     except ImportError:
         pass
@@ -56,6 +58,11 @@ try:                                   # real Park Street + College Green layout
     import park_street_map
 except ImportError:
     park_street_map = None
+try:                                   # the harbourside, off the end of College Green (with the arcade)
+    import harbourside_map
+except ImportError:
+    harbourside_map = None
+import arcade                          # the arcade machines and their games (arcade.py)
 
 # ============================================================== settings
 SCREEN_W, SCREEN_H = 1280, 720
@@ -142,9 +149,11 @@ if park_street_map is not None:
 PLACES = {name: m for name, m in MAPS}       # every place you can be, by name (stairs etc. link them up)
 if frogmore_map is not None:
     PLACES["Frogmore Street"] = frogmore_map
+if harbourside_map is not None:
+    PLACES["Harbourside"] = harbourside_map
 MAPS.append(("Queens Road", queens_road_map) if queens_road_map is not None else ("Queens Road (simple)", QUEENS_ROAD))
 
-OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&")
+OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234")
 
 # ============================================================== shop interiors
 # Each shop you can walk into gets one of these rooms. Characters:
@@ -153,9 +162,22 @@ OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&")
 #   things:  Q counter   X counter with till   M coffee machine   Z shelf   I fridge   J café table
 #            A clothes rail   G barber chair   O mirror   U treadmill   N bench press   D weights rack
 #            g plant   y rug   q bench
+#   arcade:  a carpet   1 MVB Kombat   2 Seagull Bird   3 Hoop Shot   4 Invaders   (machines: walk up, press E)
 SHOP_NAMES = {"cafe": "Café", "corner": "Corner Shop", "clothes": "Clothes Shop", "books": "Bookshop",
-              "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub"}
+              "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade"}
+ARCADE_MACHINES = {"1": "kombat", "2": "seagull", "3": "hoops", "4": "invaders"}
 INTERIORS = {
+    "arcade": [
+        "##################",
+        "#1a2a3a4aa1a2a3a4#",
+        "#aaaaaaaaaaaaaaaa#",
+        "#aaaaaaaaaaaaaaaa#",
+        "#a4a3a2a1aaaaapaa#",
+        "#aaaaaaaaaaaQXQQa#",
+        "#aaaaaaaaaaaaaaaa#",
+        "#gaaaaaaaaaaaaaag#",
+        "########E#########",
+    ],
     "club": [
         "############",
         "#*___*ZZZZg#",
@@ -997,6 +1019,7 @@ class World:
         self.lamp_spots = []                          # street lamps (light up at night)
         self.feature_lights = []                      # floodlights, the lit waterfall...
         self.exit_tile = None
+        self.cabinets = []                            # arcade machines: (front area you stand in, machine)
         if not isinstance(map_def, str):
             for shop in getattr(map_def, "SHOPS", []):
                 self.doors[tuple(shop["door"])] = shop
@@ -1099,6 +1122,20 @@ class World:
             x0, y0, x1, y1 = pt["rect"]
             self.portals.append(dict(pt, area=pygame.Rect(int(x0 * TILE), int(y0 * TILE), int((x1 - x0) * TILE), int((y1 - y0) * TILE))))
 
+        # ---- the water: every water tile and which of its sides are land (for the foam / quay edge)
+        self.water_cells = {}
+        for y in range(self.h):
+            for x in range(self.w):
+                if self.ground[y][x] == "~":
+                    land = lambda xx, yy: 0 <= xx < self.w and 0 <= yy < self.h and self.ground[yy][xx] != "~"
+                    self.water_cells[(x, y)] = (1 if land(x, y - 1) else 0) | (2 if land(x + 1, y) else 0) | \
+                                               (4 if land(x, y + 1) else 0) | (8 if land(x - 1, y) else 0)
+        for bx, by, kind, colour, flip in (getattr(map_def, "BOATS", []) if not isinstance(map_def, str) else []):
+            col = pa.BOAT_COLOURS[colour % len(pa.BOAT_COLOURS)]
+            frames = self.real_cache.setdefault(("boat", kind, col, flip), [pa.boat(kind, col, f, flip) for f in range(4)])
+            foot = by * TILE
+            self.anims.append((frames, (bx * TILE - frames[0].get_width() / 2, foot - frames[0].get_height() + 8), foot, 2.5))
+
         self.solid_grid: dict[tuple[int, int], list[pygame.Rect]] = {}
         for r in self.solids:
             for key in self._cells(r):
@@ -1112,7 +1149,7 @@ class World:
         self.chunk_cache: "OrderedDict[tuple[int, int], pygame.Surface]" = OrderedDict()
 
         # ---- life: NPCs, traffic, fountains
-        floor = set("cf_;wy")
+        floor = set("cf_;wya")
         self.free_floor = [(x, y) for y in range(self.h) for x in range(self.w)
                            if self.grid[y][x] in floor and not any(r.colliderect(pygame.Rect(x * TILE + 8, y * TILE + 8, TILE - 16, TILE - 16))
                                                                     for r in self.solid_grid.get((x, y), ()))]
@@ -1122,10 +1159,14 @@ class World:
         elif self.real is not None:
             if getattr(map_def, "NAME", "") == "Frogmore Street":
                 self.actors = people.populate_frogmore(self, map_def)
+            elif getattr(map_def, "NAME", "") == "Harbourside":
+                self.actors = people.populate_harbour(self, map_def)
             else:
                 self.actors = people.populate_street(self, map_def)
-            self.traffic = traffic.Traffic(self)
+            self.traffic = traffic.Traffic(self, getattr(map_def, "SIDE_ROAD", None))
             self.vtraffic = traffic.VerticalTraffic(self, map_def.LOWER_ROAD) if getattr(map_def, "LOWER_ROAD", None) else None
+            if self.traffic.ok and getattr(map_def, "SIDE_ROAD", None):
+                self.traffic.join(self.vtraffic)                      # cars turn between the two roads at the junction
             self.deck = traffic.DeckTraffic(self, map_def.BRIDGE_TRAFFIC) if getattr(map_def, "BRIDGE_TRAFFIC", None) else None
             night = hour >= 20.5 or hour < 5.5
             for n in self.actors:
@@ -1142,7 +1183,11 @@ class World:
         pz = pa.pixelize
         self.grass = [pa.grass_tile(i) for i in range(8)]
         self.dirt = [pa.gravel_tile(i) for i in range(3)]
-        self.water = [pa.water_tile(i) for i in range(3)]
+        kind = getattr(self._map_def, "WATER", "clear") if not isinstance(self._map_def, str) else "clear"
+        self.water_anim = pa.water_frames(kind)          # running water: redrawn every frame over the ground
+        self.water = [self.water_anim[0].subsurface((0, 0, TILE, TILE))]
+        self.water_edges = {}                             # (land sides mask, frame) -> foam overlay
+        self.pontoon = [pa.pontoon_tile(i) for i in range(3)]
         self.paving = [pa.paving_tile(i) for i in range(4)]
         self.concrete = [pa.paving_tile(i, base=(176, 180, 182)) for i in range(2)]
         self.wood = [pa.wood_floor_tile(i) for i in range(3)]
@@ -1165,7 +1210,8 @@ class World:
         self.deep_road_c = pa.deep_road_tile(1, centre=True)
         self.floors = {"d": [pa.floor_tile("dance", i) for i in range(4)],
                        "c": [pa.floor_tile("checker", 0)], ";": [pa.floor_tile("rubber", i) for i in range(2)],
-                       "f": [pa.floor_tile("shop", 0)], "w": [pa.floor_tile("carpet", i) for i in range(2)]}
+                       "f": [pa.floor_tile("shop", 0)], "w": [pa.floor_tile("carpet", i) for i in range(2)],
+                       "a": [pa.arcade_carpet(i) for i in range(4)]}
         self.void = pygame.Surface((TILE, TILE)).convert(); self.void.fill((0, 0, 0))
         self.car_cache = {}
         self.bin = pa.bin_()
@@ -1231,6 +1277,14 @@ class World:
                     self.exit_tile = (x, y)
                     self.decals.append((self.exit_mat, tile_rect.topleft))
                     self.spawn = (cx, cy - TILE + 8)
+                elif ch in ARCADE_MACHINES and self.interior is not None:     # an arcade machine
+                    machine = ARCADE_MACHINES[ch]
+                    frames = self.real_cache.setdefault(("cabinet", machine), [arcade.cabinet(machine, f) for f in range(8)])
+                    foot = tile_rect.bottom - 4
+                    self.anims.append((frames, (cx - frames[0].get_width() / 2, foot - frames[0].get_height()), foot, 5))
+                    self.solids.append(pygame.Rect(cx - 40, foot - 44, 80, 44))
+                    self._shadow(cx, foot - 4, 96, 16)
+                    self.cabinets.append((pygame.Rect(cx - 60, foot - 6, 120, 60), machine))
                 elif ch in "QXMZIJAGOUNDpgy@*":
                     self._interior_prop(ch, x, y, cx, cy, tile_rect)
                 elif ch == "P":
@@ -1473,7 +1527,7 @@ class World:
             else:
                 door = (lx % 3 == 1) if shopfront else (lx == bw // 2)
             branded = bool(b.get("brand")) and shopfront
-            key = (i, mask, tower, lx if (st in "VMAW" or branded) else lx % 6, bw if (st in "VMAW" or branded) else 0, shopfront, door)
+            key = (i, mask, tower, lx if (st in "VMAWRBZ" or branded) else lx % 6, bw if (st in "VMAWRBZ" or branded) else 0, shopfront, door)
             size = (TILE, TILE + height)
             pos = (x * TILE, y * TILE - height)
             def make(b=b, mask=mask, tower=tower, lx=lx, bw=bw, shopfront=shopfront, door=door, key=key, seed=seed):
@@ -1630,6 +1684,13 @@ class World:
             out.append((9 * TILE, 3 * TILE, 180, (255, 200, 140), 0.8))
             out.append((9 * TILE, 6.5 * TILE, 160, (255, 170, 120), 0.6))
             return out
+        if self.interior is not None and self.interior["kind"] == "arcade":   # each machine lights up the carpet in front
+            out = []
+            for area, machine in self.cabinets:
+                m = arcade.MACHINES[machine]
+                out.append((area.centerx, area.top - 70, 130, m["glow"], 0.85))
+            out.append((13.5 * TILE, 4.5 * TILE, 200, (255, 220, 170), 0.8))     # the prize counter
+            return out
         if self.interior is not None or self.real is None or dark < 0.05:
             return []
         out = []
@@ -1748,6 +1809,30 @@ class World:
             frac = share + (1 - share) * frac
         return -(frac * st.get("depth", 100) + bob)
 
+    def draw_water(self, screen, view, ox, oy):
+        """The running water, over the ground chunks: ripples drifting along, foam lapping at the edges."""
+        if not self.water_cells:
+            return
+        f = int(self.time * 5) % pa.WATER_FRAMES
+        img = self.water_anim[f]
+        for ty in range(max(0, view.top // TILE), min(self.h, view.bottom // TILE + 1)):
+            for tx in range(max(0, view.left // TILE), min(self.w, view.right // TILE + 1)):
+                mask = self.water_cells.get((tx, ty))
+                if mask is None:
+                    continue
+                pos = (tx * TILE + ox, ty * TILE + oy)
+                screen.blit(img, pos, ((tx % pa.WATER_SPAN) * TILE, (ty % pa.WATER_SPAN) * TILE, TILE, TILE))
+                if mask:
+                    edge = self.water_edges.get((mask, f))
+                    if edge is None:
+                        edge = self.water_edges[(mask, f)] = pa.water_edge(mask, f)
+                    screen.blit(edge, pos)
+
+    def cabinet_near(self, pos):
+        """The arcade machine you're standing at (in front of it), if any."""
+        here = [(abs(area.centerx - pos[0]), machine) for area, machine in self.cabinets if area.collidepoint(pos)]
+        return min(here)[1] if here else None
+
     def npc_near(self, pos, reach=80):
         best, bd = None, reach
         for n in self.actors:
@@ -1818,7 +1903,8 @@ class World:
             if lr and x == lr.get("centre_x"):
                 return self.deep_road_c
             return self.deep_road[v % len(self.deep_road)]
-        if ch == "~": return self.water[v % len(self.water)]
+        if ch == "~": return self.water[0]
+        if ch == "+": return self.pontoon[v % len(self.pontoon)]
         if ch == "-": return (self.paving if self.real is not None else self.concrete)[v % 4 % (4 if self.real is not None else 2)]
         if ch == "_": return self.wood[v % len(self.wood)]
         if ch == ":": return self.path_tiles[v % len(self.path_tiles)]
@@ -2063,7 +2149,8 @@ _NoKeys = _NoKeysT()
 # TEMPORARY (for testing): jump straight to the stairs instead of walking there. Delete when done.
 DEV_TELEPORTS = {
     pygame.K_F5: ("Frogmore Street", (9.6, 10.4), "left"),     # bottom of the Frogmore steps
-    pygame.K_F6: ("Park Street", (152.0, 20.6), "up"),         # top of the Park Street stairwell
+    pygame.K_F6: ("Park Street", (93.0, 20.6), "up"),         # top of the Park Street stairwell
+    pygame.K_F7: ("Harbourside", (44.5, 76.8), "up"),         # outside the arcade
 }
 
 
@@ -2166,6 +2253,14 @@ def main():
                 talk["i"] += 1
                 if talk["i"] >= len(talk["lines"]):
                     talk["npc"].talking = False; talk = None
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and world.cabinet_near(player.pos) is not None:
+                machine = world.cabinet_near(player.pos)            # play the machine: it takes over the screen
+                if arcade.play(screen, clock, machine, BASE_DIR / "saves", BASE_DIR) == "quit":
+                    running = False
+                pygame.event.clear()
+                clock.tick()
+                accumulator = 0.0
+                keys_now = pygame.key.get_pressed()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                 npc = world.npc_near((player.pos.x, player.pos.y))
                 if npc is not None:
@@ -2232,6 +2327,7 @@ def main():
                 in_portal = pt
         if in_portal is None:
             portal_lock = False
+            portal_hold = False                              # you've stepped clear of where you came in
         elif not portal_lock and not portal_hold and not world.interior:
             want = {"up": (pygame.K_w, pygame.K_UP), "down": (pygame.K_s, pygame.K_DOWN),
                     "left": (pygame.K_a, pygame.K_LEFT), "right": (pygame.K_d, pygame.K_RIGHT)}[in_portal.get("dir", "up")]
@@ -2240,6 +2336,8 @@ def main():
                 place_name = in_portal["to"]
                 world = named_worlds.get(place_name) or World(PLACES[place_name], sheet, hour=clock_.hour)
                 sx, sy = in_portal["spawn"]
+                if in_portal.get("keep") == "y":                # walking off the edge of the map: same place up/down
+                    sy = player.pos.y / TILE
                 put_player((sx * TILE, sy * TILE), in_portal.get("facing"))
                 fade = 0.35
                 portal_lock = True
@@ -2284,6 +2382,7 @@ def main():
         for cy in range(max(0, view.top // chunk_px), min(world.h * TILE - 1, view.bottom) // chunk_px + 1):
             for cx in range(max(0, view.left // chunk_px), min(world.w * TILE - 1, view.right) // chunk_px + 1):
                 screen.blit(world.chunk(cx, cy), (cx * chunk_px + ox, cy * chunk_px + oy))
+        world.draw_water(screen, view, ox, oy)
 
         # ---- player shadow sits on the ground (or on the step you're on)
         px, py = round(p.x), round(p.y)
@@ -2352,6 +2451,8 @@ def main():
         ambient = clock_.ambient()
         if world.interior is not None and world.interior["kind"] == "club":
             ambient = (44, 32, 66)                           # it's dark in a club, whatever the time
+        elif world.interior is not None and world.interior["kind"] == "arcade":
+            ambient = (92, 80, 126)                          # lights down low, the machines glowing
         elif world.interior is not None:                     # indoors the lights are on
             ambient = tuple(max(a, b) for a, b in zip(ambient, (236, 226, 206)))
         lighting.apply(screen, ambient, lit, ox, oy)
@@ -2365,7 +2466,11 @@ def main():
         screen.blit(face, (w - face.get_width() - 12, 8))
         wt = hud(f"Day {clock_.day}  {clock_.text()}" + ("  >>" if clock_.fast else ""))
         screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
-        if talk is None and not pocket.busy:
+        machine_here = world.cabinet_near(player.pos) if world.interior is not None else None
+        if machine_here is not None and talk is None and not pocket.busy:
+            tip = hud(f"E: play {arcade.MACHINES[machine_here]['title']}")
+            screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 96))
+        elif talk is None and not pocket.busy:
             npc = world.npc_near((player.pos.x, player.pos.y))
             if npc is not None and near_shop is None:
                 tip = hud(f"E: talk to {npc.name}")

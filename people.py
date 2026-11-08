@@ -651,6 +651,40 @@ def populate_frogmore(world, map_def):
     return npcs
 
 
+def populate_harbour(world, map_def):
+    """The harbourside: people walking the pavements and the Waterfront, waiting for the ferry, out on the
+    pontoons, on the benches, and a few outside the arcade."""
+    rng = random.Random(1873)
+    npcs = []
+    k = 0
+    for axis, line, a, b, count in map_def.WALKERS:
+        for _ in range(count):
+            if axis == "x":
+                n = NPC(f"hwalk{k}", rng.uniform(a + 0.5, b - 0.5) * TILE, line * TILE, "public", "walk_x",
+                        d=rng.choice(["left", "right"]), seed=8000 + k, speed=rng.uniform(52, 66))
+                n.x0, n.x1 = a * TILE, b * TILE
+            else:
+                n = NPC(f"hwalk{k}", line * TILE + rng.uniform(-6, 6), rng.uniform(a + 0.5, b - 0.5) * TILE, "public", "walk_y",
+                        d=rng.choice(["up", "down"]), seed=8000 + k, speed=rng.uniform(52, 66))
+                n.y0, n.y1 = a * TILE, b * TILE
+            n.hours = [(7, 20), (8, 22), (10, 19), (9, 21), (19, 26)][k % 5]
+            if rng.random() < 0.15: n.tool = "phone"
+            npcs.append(n); k += 1
+    for j, (x, y, d, role, hours) in enumerate(map_def.EXTRA_PEOPLE):
+        n = NPC(f"hx{j}", x * TILE, y * TILE, role, "stand", d=d, seed=8100 + j)
+        n.hours = hours
+        npcs.append(n)
+    for y in range(world.h):                                           # benches
+        for x in range(world.w):
+            if world.grid[y][x] == "q" and rng.random() < 0.5:
+                n = NPC(f"hbench{x}_{y}", x * TILE + 32 + rng.choice((-14, 14)), y * TILE + 46, "public", "sit", d="down",
+                        tool=rng.choice([None, "phone", "cup", "book", None]), seed=8300 + x * 31 + y)
+                n.sort_bias = 4
+                n.hours = rng.choice([(9, 18), (10, 19), (8, 16), (12, 20)])
+                npcs.append(n)
+    return npcs
+
+
 def populate_street(world, map_def):
     """Pedestrians on both pavements, people on benches, at café tables and the bus stop, the story characters."""
     rng = random.Random(1856)
@@ -709,7 +743,7 @@ def populate_street(world, map_def):
                     n.hours = (6, 23.5) if k == 0 else (7, 19)
                     npcs.append(n)
     # a few people stood chatting in pairs on the pavement
-    for k, xt in enumerate((40, 76, 118)):
+    for k, xt in enumerate((40, 76, 134)):
         for side in (0, 1):
             n = NPC(f"chat{k}_{side}", (xt + side * 0.7) * TILE, 21 * TILE + 52, "public", "stand",
                     d="right" if side == 0 else "left", seed=4000 + k * 2 + side)
@@ -717,8 +751,8 @@ def populate_street(world, map_def):
             n.hours = [(10, 21), (12, 22.5), (9, 18)][k]
             npcs.append(n)
     # ---- after dark: people you'd rather not meet, and students on their way home
-    shady_spots = [(57.4, 20.6, "right"), (82.6, 20.5, "left"), (88.2, 31.4, "right"), (108.5, 31.5, "left"),
-                   (29.5, 20.5, "down"), (121.0, 39.5, "left"), (50.2, 32.5, "down"), (70.6, 32.4, "down")]
+    shady_spots = [(57.4, 20.6, "right"), (82.6, 20.5, "left"), (88.2, 31.4, "right"), (124.5, 31.5, "left"),
+                   (29.5, 20.5, "down"), (137.0, 39.5, "left"), (50.2, 32.5, "down"), (70.6, 32.4, "down")]
     for k, (sx, sy, d) in enumerate(shady_spots):
         n = NPC(f"shady{k}", sx * TILE, sy * TILE, "shady", "stand", d=d, seed=5000 + k)
         n.hours = [(21, 29), (22, 28.5), (20.5, 29.5), (23, 28), (21.5, 27), (22, 29), (20, 26), (23.5, 29.5)][k]
@@ -767,12 +801,13 @@ WORK = {   # shop kind -> (role at the counter, pose, tool, facing)
     "barber": ("barber", "work", "broom", "down"), "corner": ("shopkeeper", "stand", None, "down"),
     "clothes": ("assistant", "work", "cloth", "down"), "books": ("bookseller", "work", "book", "down"),
     "gym": ("gym", "stand", None, "down"), "club": ("bartender", "work", "cup", "down"),
+    "arcade": ("attendant", "stand", None, "down"),
 }
 
 
 OPEN_HOURS = {   # when each kind of shop is open (close > 24 = after midnight)
     "cafe": (7, 18), "kebab": (11, 27), "corner": (0, 24), "clothes": (9, 18), "books": (9, 18.5),
-    "barber": (9, 18), "gym": (6, 23), "club": (22, 27),
+    "barber": (9, 18), "gym": (6, 23), "club": (22, 27), "arcade": (10, 26),
 }
 
 
@@ -848,6 +883,13 @@ def populate_interior(world, kind, seed, hour=12.0):
             npcs.append(n)
         for k, x in enumerate((8, 10)):
             npcs.append(NPC(pid(f"bar{k}"), x * TILE + 32, 4 * TILE + 52, "dancer", "stand", d="up", seed=seed + 480 + k))
+    if kind == "arcade":                                               # people playing some of the machines
+        k = 0                                                          # (only along the back wall on the right,
+        for y in range(world.h):                                       #  so every game always has a free machine)
+            for x in range(world.w // 2, world.w):
+                if world.grid[y][x] in "1234" and y == 1 and rng.random() < (0.45 if late else 0.75):
+                    n = NPC(pid(f"player{k}"), x * TILE + 32, (y + 1) * TILE + 30, "customer", "stand", d="up", seed=seed + 600 + k)
+                    npcs.append(n); k += 1
     if kind == "gym":                                                  # dumbbell curls by the rack
         n = NPC(pid("curl"), 8 * TILE + 32, 2 * TILE + 52, "lifter", "work", d="down", tool="dumbbell", seed=seed + 7)
         n.anim_speed = 1.6
@@ -858,7 +900,7 @@ def populate_interior(world, kind, seed, hour=12.0):
             x, y = 4 + k * 2, 4
             n = NPC(pid(f"latenight{k}"), x * TILE + 32, y * TILE + TILE - 10, "drunk", "stand", d="up", seed=seed + 700 + k)
             npcs.append(n)
-    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0}[kind] - (1 if late and kind != "club" else 0)):
+    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0, "arcade": 1}[kind] - (1 if late and kind != "club" else 0)):
         free = world.free_floor
         if not free: break
         x, y = rng.choice(free)

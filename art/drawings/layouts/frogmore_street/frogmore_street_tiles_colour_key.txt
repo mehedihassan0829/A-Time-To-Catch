@@ -1,0 +1,12 @@
+frogmore_street_tiles_1px_per_tile.png: one pixel = one tile, 30 across x 34 down.
+Paint with these exact colours (RGB) and send it back - the map can be rebuilt from it.
+
+  150,160,190   #96a0be   terraces / shops / hotel
+  112,106,100   #706a64   stone wall / pier
+  128,128,126   #80807e   bridge walls (concrete)
+   60, 46, 70   #3c2e46   OMG nightclub
+   70, 72, 78   #46484e   road
+  214,206,190   #d6cebe   paving / pavement
+  150,140,128   #968c80   steps
+  250,200, 60   #fac83c   street lamp
+   60, 90, 60   #3c5a3c   wheelie bin

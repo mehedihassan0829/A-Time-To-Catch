@@ -72,7 +72,7 @@ STORY_NPCS = [
     dict(
         id="ray",
         name="Ray",
-        spot=(89.5, 34),                 # Frog Lane, beside City Hall
+        spot=(89.5, 34),                 # Frog Lane, next to the bridge over Frogmore Street
         pose="sit", facing="right", dog=False,
         look=dict(coat="#6a4a2a"),
         lines=[

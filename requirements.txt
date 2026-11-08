@@ -14,3 +14,6 @@
 # Needs Python 3.9 or newer. pygame-ce (Community Edition) is used instead of plain "pygame"
 # because it has ready-made installs for new Python versions (3.13+), so nothing needs compiling.
 pygame-ce>=2.5.8
+# MVB Kombat (one of the arcade machines on the harbourside) uses pygame-widgets for its menus.
+# It only needs pyperclip, so it works alongside pygame-ce.
+pygame-widgets>=1.3.2

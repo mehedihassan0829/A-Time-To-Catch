@@ -1,6 +1,6 @@
 # A Time To Catch
 
-A top-down pixel-art game set on Park Street and Frogmore Street in Bristol. Walk the street by day and night, talk to the people who live in its alleyways, and keep notes on what you find.
+A top-down pixel-art game set on Park Street, Frogmore Street and the harbourside in Bristol. Walk the street by day and night, talk to the people who live in its alleyways, and keep notes on what you find.
 
 ## Story
 
@@ -19,7 +19,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-Needs Python 3.9 or newer. The only library is `pygame-ce`, which `main.py` installs on first run if it's missing.
+Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (used by MVB Kombat), which `main.py` installs on first run if they're missing.
 
 ## Controls
 
@@ -27,7 +27,7 @@ Needs Python 3.9 or newer. The only library is `pygame-ce`, which `main.py` inst
 |---|---|
 | WASD / arrows | move |
 | Shift | run |
-| E | talk / go into a shop |
+| E | talk / play an arcade machine |
 | I | pocket (inventory) |
 | N | notebook |
 | F | lighter |
@@ -36,8 +36,21 @@ Needs Python 3.9 or newer. The only library is `pygame-ce`, which `main.py` inst
 | M | switch map |
 | F1 | show hitboxes |
 | F3 | show FPS |
-| F5 / F6 | *(testing)* jump to the Frogmore steps / Park Street stairwell |
+| F5 / F6 / F7 | *(testing)* jump to the Frogmore steps / Park Street stairwell / the arcade |
 | Esc | close / quit |
+
+## The harbourside and the arcade
+
+Walk off the right-hand end of College Green to reach the harbourside: Anchor Road, the Centre and the ferry landing, the Watershed, the pontoons and boats, and the Harbour Arcade (where the aquarium was). The arcade is open 10:00 till 2:00.
+
+Walk up to a machine and press E to play it. The game fills the screen inside the machine's frame; Esc or Backspace steps away. High scores are saved in `saves/highscores.json`.
+
+| Machine | |
+|---|---|
+| MVB Kombat | the MVB Kombat fighting game (in `mvb_kombat/`) |
+| Seagull Bird | flap a gull past Cabot Tower and the harbour cranes |
+| Hoop Shot | basketball with real ball physics: baskets in a row score more and more |
+| Invaders | Space Invaders |
 
 ## Files
 
@@ -46,6 +59,9 @@ Needs Python 3.9 or newer. The only library is `pygame-ce`, which `main.py` inst
 | `main.py` | the game: world, drawing, camera, player, shops, stairs and levels |
 | `pixel_art.py` | all the pixel art, drawn in code |
 | `park_street_map.py`, `frogmore_map.py` | the two street maps (generated from OpenStreetMap) |
+| `harbourside_map.py` | the harbourside, off the end of College Green |
+| `arcade.py` | the arcade machines and their games (Seagull Bird, Hoop Shot, Invaders), and running MVB Kombat inside a machine |
+| `mvb_kombat/` | the MVB Kombat game, its art and sound |
 | `queens_road_map.py` | an earlier Queens Road map |
 | `people.py` | NPCs: looks, jobs, routines, opening hours |
 | `story.py` | the story characters and what they say - edit this to write the plot |
@@ -55,7 +71,7 @@ Needs Python 3.9 or newer. The only library is `pygame-ce`, which `main.py` inst
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
 | `art/drawings/` | the same drawings as PNGs |
 
-Your notebook and the time of day are saved in `saves/` (not committed).
+Your notebook, the time of day and the arcade high scores are saved in `saves/` (not committed).
 
 ## Credits
 
