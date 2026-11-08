@@ -201,7 +201,7 @@ EMILY = [
     ("Emily", "I found this in my dad's things. It must be from the late nineties.", dict(scene="cafe_emily")),
     ("John", "Do you know when?"),
     ("Emily", "I think 1999. Why?"),
-    ("John", "Look at the arcade in the background."),
+    ("John", "Look at the arcade in the background.")   ,
     ("", "Emily looks closer."),
     ("Emily", "What about it?"),
     ("John", "That's where I work."),
