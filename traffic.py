@@ -1,5 +1,6 @@
 """Traffic: pelican-crossing lights that change, cars that drive both ways, queue, stop at red lights and
-for you, and a double-decker bus waiting at the College Green stop."""
+for you, and the double-decker bus: it comes down Park Street, stops at the College Green stop, waits (longer if
+someone's at the stop) and goes on up towards Clifton Down - then the next one comes along."""
 import random
 import pygame
 import pixel_art as pa
@@ -72,7 +73,9 @@ class Traffic:
         for y in range(world.h):
             for x in range(world.w):
                 if world.grid[y][x] == "u":
-                    self.bus = dict(x=(x + 0.5) * TILE - 24, y=(bottom + 1) * TILE - 6)
+                    stop_x = (x + 0.5) * TILE - 24
+                    self.bus = dict(x=stop_x, y=(bottom + 1) * TILE - 6, stop_x=stop_x, state="stop", t=10.0, v=0.0,
+                                    boarded=False)
         self.bus_imgs = [pa.bus(i) for i in range(2)] if self.bus else []
         self.t = 0.0
 
@@ -146,10 +149,56 @@ class Traffic:
         best = min(self.crossings, key=lambda c: abs(c.x0 - x_tile * TILE)) if self.crossings else None
         return best.state if best else "green"
 
+    BUS_SPEED = 230.0
+    BUS_WAIT = 14.0                      # seconds at the stop
+    BUS_GAP = 9.0                        # seconds after one leaves before the next comes down the hill
+
+    def bus_at_stop(self):
+        return bool(self.bus) and self.bus["state"] == "stop"
+
+    def board_bus(self):
+        """The detective's got on: the bus leaves straight away."""
+        if self.bus_at_stop():
+            self.bus["boarded"] = True
+            self.bus["state"] = "leaving"
+
+    def _update_bus(self, dt, player_rect):
+        b = self.bus
+        w = self.bus_imgs[0].get_width()
+        if b["state"] == "away":
+            b["t"] -= dt
+            if b["t"] <= 0:
+                b["state"], b["x"], b["v"] = "coming", self.world.pixel_w + w, self.BUS_SPEED
+        elif b["state"] == "coming":                       # down Park Street, slowing for the stop
+            left = b["x"] - b["stop_x"]
+            b["v"] = max(40.0, min(self.BUS_SPEED, left * 1.2))
+            ahead = pygame.Rect(int(b["x"] - w / 2 - 90), int(b["y"] - 44), 90, 44)
+            if ahead.colliderect(player_rect):
+                b["v"] = 0.0                                # don't run anyone over
+            b["x"] -= b["v"] * dt
+            if b["x"] <= b["stop_x"]:
+                b["x"], b["state"], b["t"], b["v"] = b["stop_x"], "stop", self.BUS_WAIT, 0.0
+        elif b["state"] == "stop":
+            near = abs(player_rect.centerx - b["x"]) < 4 * TILE and abs(player_rect.centery - b["y"]) < 3 * TILE
+            if not near:                                    # the driver waits while you're at the stop
+                b["t"] -= dt
+            if b["t"] <= 0:
+                b["state"] = "leaving"
+        elif b["state"] == "leaving":                      # on up the road, off the end of the map
+            b["v"] = min(self.BUS_SPEED * 1.2, b["v"] + 160 * dt)
+            ahead = pygame.Rect(int(b["x"] - w / 2 - 90), int(b["y"] - 44), 90, 44)
+            if ahead.colliderect(player_rect) and not b["boarded"]:
+                b["v"] = 0.0                                # don't run anyone over
+            b["x"] -= b["v"] * dt
+            if b["x"] < -w:
+                b["state"], b["t"], b["boarded"] = "away", self.BUS_GAP, False
+
     def update(self, dt, player_rect, hour=12.0):
         if not self.ok: return
         self.hour = hour
         self.t += dt
+        if self.bus:
+            self._update_bus(dt, player_rect)
         for c in self.crossings: c.t += dt
         L = self.length
         W = self.world.pixel_w
@@ -213,7 +262,7 @@ class Traffic:
             ly = self.lane_y[car.lane]
             out.append((car.x + car.lane * (L / 2 + 50), ly - 22, 110, (255, 244, 210), 0.85 * dark))
             out.append((car.x - car.lane * L / 2, ly - 26, 34, (255, 40, 30), 0.8 * dark))
-        if self.bus:
+        if self.bus and self.bus["state"] != "away":
             out.append((self.bus["x"], self.bus["y"] - 90, 210, (255, 236, 190), 0.6 * dark))
         col = {"green": (60, 255, 120), "amber": (255, 180, 40), "red": (255, 50, 40), "redamber": (255, 120, 40)}
         for cx, foot, tx in self.signals:
@@ -225,7 +274,7 @@ class Traffic:
         out = []
         for car in self.cars:
             r = pygame.Rect(0, 0, self.length - 10, 34); r.midbottom = (int(car.x), int(self.lane_y[car.lane] - 2)); out.append(r)
-        if self.bus:
+        if self.bus and self.bus["state"] in ("stop", "coming", "leaving"):
             w = self.bus_imgs[0].get_width()
             out.append(pygame.Rect(int(self.bus["x"] - w / 2 + 8), int(self.bus["y"] - 44), w - 16, 42))
         return out
@@ -248,7 +297,7 @@ class Traffic:
             if img is None:
                 img = self.sig_img[st] = pa.traffic_signal(st)
             yield img, (cx - img.get_width() / 2, foot - img.get_height()), foot
-        if self.bus:
+        if self.bus and self.bus["state"] != "away":
             img = self.bus_imgs[int(self.t * 3) % 2]                # engine ticking over
             yield img, (self.bus["x"] - img.get_width() / 2, self.bus["y"] - img.get_height()), self.bus["y"]
 

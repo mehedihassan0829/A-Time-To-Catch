@@ -51,7 +51,7 @@ OBJECTIVES = [
     dict(id="daniel", label="Ask Daniel about 1999 at The Gazette"),
     dict(id="records", label="Find the 1999 staff record in the arcade's store room"),
     dict(id="usher2", label="Go back to Professor Usher's office"),
-    dict(id="station", label="Get to Clifton Down station - stop Usher"),
+    dict(id="station", label="Catch the bus to Clifton Down (College Green stop) - stop Usher"),
 ]
 
 # ------------------------------------------------------------------ the pocket items the story gives you
@@ -270,11 +270,15 @@ USHER_GONE = [
 ]
 
 # ------------------------------------------------------------------ the end (for now)
-ENDING = [
-    ("", "The detective runs up Whiteladies Road towards Clifton Down station.", dict(black=True)),
-    ("", "Somewhere ahead, Professor Peter Usher is waiting for a train.", dict(black=True)),
-    ("", "TO BE CONTINUED...", dict(black=True)),
+BUS_RIDE = [
+    ("", "The detective jumps on the bus. \"Clifton Down - quick as you can.\""),
+    ("", "The bus pulls away up the hill, past the Wills Memorial Building, towards Whiteladies Road."),
 ]
+
+ENDING = [
+    ("", "The bus pulls up outside Clifton Down station. The detective runs for the platforms.", dict(black=True)),
+    ("", "Somewhere ahead, Professor Peter Usher is waiting for a train.", dict(black=True)),
+]   # ...then the film (art/videos/final.mp4) plays, and it's back to the main menu
 
 # ------------------------------------------------------------------ the morning paper (optional, from Park Stores)
 NEWSPAPER_BUY = [

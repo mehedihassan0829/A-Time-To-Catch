@@ -14,9 +14,10 @@ Controls:
     F1                 - show / hide hitboxes (handy when editing the map)
     F3                 - show / hide FPS
     F5 / F6 / F7       - (testing) jump to the Frogmore steps / the Park Street stairwell / the arcade
+    F11                - full screen / window (the game starts full screen; remembered in saves/settings.json)
     In the arcade: walk up to a machine and press E to play it (Esc or Backspace to step away)
     Click / E / Space  - next line in a cut scene (and put the newspaper away)
-    Esc                - quit
+    Esc                - pause menu (resume, controls, music volume, main menu, quit)
 
 The story (quest.py): you start on Park Street every time. The compass at the top of the screen points
 along the walking route to wherever you need to go next - first the crime scene at the harbourside.
@@ -42,7 +43,18 @@ def _ensure_libraries():
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(req)])
 
 
+def _ensure_video():
+    """The film at the end needs OpenCV. If it can't be installed the game still runs (it shows a title card)."""
+    try:
+        import cv2  # noqa: F401
+    except ImportError:
+        import subprocess, sys
+        print("Installing opencv-python for the film at the end (one-off)...")
+        subprocess.call([sys.executable, "-m", "pip", "install", "opencv-python"])
+
+
 _ensure_libraries()
+_ensure_video()
 import pygame
 
 import pixel_art as pa                 # all the pixel-art drawing (pixel_art.py, next to this file)
@@ -68,6 +80,9 @@ try:                                   # the harbourside, off the end of College
 except ImportError:
     harbourside_map = None
 import arcade                          # the arcade machines and their games (arcade.py)
+import music as music_                 # the music (art/music) and which track plays where (music.py)
+import menu as menu_                   # the main menu and the pause menu (menu.py)
+import video                           # the film at the end (art/videos, video.py)
 import quest                           # objectives, the compass, cut scenes, the newspaper (quest.py)
 
 # ============================================================== settings
@@ -159,10 +174,10 @@ if harbourside_map is not None:
     PLACES["Harbourside"] = harbourside_map
 MAPS.append(("Queens Road", queens_road_map) if queens_road_map is not None else ("Queens Road (simple)", QUEENS_ROAD))
 
-OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx" "056789<>?[]{}")
-STORY_PROPS = "056789<>?[]{}"     # the story's rooms (see INTERIORS): 5 records shelf  6 lockers  7 boxes  8 desk (9 = its
+OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx" "056789<>?[]{}e")
+STORY_PROPS = "056789<>?[]{}e"     # the story's rooms (see INTERIORS): 5 records shelf  6 lockers  7 boxes  8 desk (9 = its
                                   # right half)  0 bookcase  [ filing cabinet  { office chair  < sofa (> = right half)
-                                  # ? side table with the phone  ] armchair  } floor lamp
+                                  # ? side table with the phone  ] armchair  } floor lamp  e bunk bed (the hostel)
 RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "2001")]   # the arcade's staff records
 
 # ============================================================== shop interiors
@@ -175,7 +190,8 @@ RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "20
 #   arcade:  a carpet   1 MVB Kombat   2 Seagull Bird   3 Hoop Shot   4 Invaders   (machines: walk up, press E)
 SHOP_NAMES = {"cafe": "Café", "corner": "Corner Shop", "clothes": "Clothes Shop", "books": "Bookshop",
               "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade",
-              "zaza": "Restaurant", "usher": "Professor Usher's Office", "gazette": "Newspaper Office", "home": "Home"}
+              "zaza": "Restaurant", "usher": "Professor Usher's Office", "gazette": "Newspaper Office", "home": "Home",
+              "hostel": "Hostel"}
 ZAZA_CHARS = "SxBKbhTPFWV"     # Za Za Bazaar: S station (4 wide, x = the rest), B bar, K back bar, b booth (2 wide, h = rest),
                                # T table for four, P pillar, F drinks station (2 wide), W / V toilets; i = polished concrete
 ARCADE_MACHINES = {"1": "kombat", "2": "seagull", "3": "hoops", "4": "invaders"}
@@ -204,6 +220,19 @@ INTERIORS = {
         "#________]_#",
         "#_7________#",
         "#g_____77_g#",
+        "#####E######",
+    ],
+    # The Night Owl hostel on Park Street: somewhere to sleep, or wait for the right time (talk at the desk / a bed)
+    "hostel": [
+        "############",
+        "#g0ee__ee0g#",
+        "#__________#",
+        "#_ee____ee_#",
+        "#__________#",
+        "#p_______]_#",
+        "#XQQ_______#",
+        "#________y_#",
+        "#g_________#",
         "#####E######",
     ],
     # The Gazette's newsroom, where Daniel works
@@ -388,6 +417,9 @@ def _shade(c, k):
 # The looks you can switch between with Tab.  hair=None means bald.
 # style: "short", "long" (hair to shoulders), "helmet", "cap", "bald", "robot"
 CHARACTER_LOOKS = {
+    # the detective: trench coat, brunette hair, a cigarette in his mouth all the time (Tab to try the others)
+    "Detective":   dict(shirt="#d8d4c8", skin="#f1c29a", hair="#5b3a24", pants="#34343c", style="short",
+                        coat="#b08a5a", cig=True),
     "Jay":         dict(shirt="#2f95d0", skin="#c48647", hair="#333333", pants="#3b4250", style="short"),
     "Sam":         dict(shirt="#cd8c4a", skin="#ffd0a3", hair="#80582e", pants="#4a3a2c", style="short"),
     "Old Ted":     dict(shirt="#414141", skin="#ffd0a3", hair="#cccccc", pants="#2e2e2e", style="short"),
@@ -1691,7 +1723,7 @@ class World:
         key = (ch, x if ch in "QX" else 0)
         cache = self.real_cache
         if ch == "y":
-            rug_col = {"usher": (120, 36, 40), "home": (54, 70, 110)}.get(kind, INTERIOR_WALLS[seed % len(INTERIOR_WALLS)][::-1])
+            rug_col = {"usher": (120, 36, 40), "home": (54, 70, 110), "hostel": (70, 110, 90)}.get(kind, INTERIOR_WALLS[seed % len(INTERIOR_WALLS)][::-1])
             img = cache.setdefault(("rug", seed, kind), pa.rug(rug_col))
             self.decals.append((img, (x * TILE, y * TILE)))
             return
@@ -1786,11 +1818,13 @@ class World:
             img = cache.setdefault(("sidetable", 0), pa.side_table(0))
         elif ch == "]":
             img = cache.setdefault("armchair", pa.armchair())
+        elif ch == "e":
+            img = cache.setdefault(("bunk", x % 3), pa.bunk_bed(x * 3 + y))
         else:
             img = cache.setdefault("floorlamp", pa.floor_lamp())
         left = x * TILE + (TILE if wide else TILE // 2) - img.get_width() // 2
         self.sprites.append(Sprite(img, (left, foot - img.get_height()), foot))
-        if ch in "560[":                                    # against the wall: the whole tile
+        if ch in "560[e":                                   # against the wall / beds: the whole tile
             self.solids.append(pygame.Rect(x * TILE, y * TILE + 8, TILE, TILE - 8))
         else:
             base = pygame.Rect(0, 0, min(img.get_width() - 8, TILE * 2), 24)
@@ -2476,6 +2510,9 @@ class _NoKeysT:
 _NoKeys = _NoKeysT()
 
 
+TOGGLE_DISPLAY = None      # set by main(): switches full screen / window (F11)
+
+
 def render_scene(screen, world, centre, extra=()):
     """Draw a world (ground, water, everything depth-sorted, no player) centred on a point - for cut scenes and
     time echoes. extra = more Sprites to sort in (e.g. the detective in the opening scene)."""
@@ -2511,16 +2548,62 @@ DEV_TELEPORTS = {
 
 
 def main():
+    """Opens the window, then the main menu; Start begins the story (from the beginning every time)."""
     pygame.init()
-    flags = pygame.SCALED | pygame.RESIZABLE
+    settings = BASE_DIR / "saves" / "settings.json"
+    full = bool(music_.load_setting(settings, "fullscreen", True))    # full screen unless you've picked a window
+    flags = pygame.SCALED | pygame.RESIZABLE | (pygame.FULLSCREEN if full else 0)
     try:
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), flags, vsync=1)
     except pygame.error:
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), flags)
     pygame.display.set_caption("A Time To Catch")
-    pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.TEXTINPUT, pygame.MOUSEBUTTONDOWN])
-    pygame.key.stop_text_input()
+    display_state = {"full": full}
 
+    def is_full():
+        return display_state["full"]
+
+    def toggle_display():
+        """F11 / the Display option: full screen <-> window (remembered for next time)."""
+        try:
+            pygame.display.toggle_fullscreen()
+            display_state["full"] = not display_state["full"]
+            music_.save_setting(settings, "fullscreen", display_state["full"])
+        except pygame.error as e:
+            print("Couldn't switch full screen:", e)
+    global TOGGLE_DISPLAY
+    TOGGLE_DISPLAY = toggle_display
+    pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.TEXTINPUT, pygame.MOUSEBUTTONDOWN,
+                              pygame.MOUSEMOTION])
+    pygame.key.stop_text_input()
+    music = music_.Music(BASE_DIR / "art" / "music", BASE_DIR / "saves")
+    menu = menu_.Menu(music, (is_full, toggle_display))
+    clock = pygame.time.Clock()
+    title_world = World(PLACES["Park Street"], None, hour=12.0, past=True) if "Park Street" in PLACES else None
+
+    title_state = {"t": 0.0}
+
+    def title_background(surf, t):
+        """Behind the main menu: a slow drift along Park Street."""
+        if title_world is None:
+            surf.fill((10, 10, 14)); return
+        dt = max(0.0, min(0.05, t - title_state["t"]))
+        title_state["t"] = t
+        title_world.update(dt, pygame.Rect(-500, -500, 10, 10), 12.0, False)    # people and cars carry on
+        span = (title_world.pixel_w - 1400) / 2
+        x = 700 + span * (1 - math.cos(t * 0.02))
+        render_scene(surf, title_world, (x, 21 * TILE))
+
+    while True:
+        if menu.title(screen, clock, title_background) == "quit":
+            break
+        if run_game(screen, clock, music, menu) == "quit":
+            break
+    pygame.quit()
+
+
+def run_game(screen, clock, music, menu):
+    """One go at the story. Returns 'title' (back to the main menu) or 'quit'."""
     sheet = None
     map_index = 0
     clock_ = daynight.GameClock(BASE_DIR / "saves")
@@ -2531,8 +2614,8 @@ def main():
     camera.update(player.pos, 1, screen.get_size(), world)
     camera.prev_pos.update(camera.pos)
 
-    clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas,menlo,monospace", 15)
+    outcome = "quit"
     hud_cache = {}
 
     def hud(text):
@@ -2615,6 +2698,18 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE and talk is None and not pocket.busy \
+                    and story.reading is None and story.choice is None:
+                choice = menu.pause(screen, clock)               # everything stops while the menu's open
+                if choice == "quit":
+                    running = False
+                elif choice == "title":
+                    outcome, running = "title", False
+                pygame.event.clear()
+                clock.tick()
+                accumulator = 0.0
+                keys_now = pygame.key.get_pressed()
+                break
             elif story.busy:                                  # a cut scene / the newspaper: click to go on
                 if talk is not None:
                     talk["npc"].talking = False; talk = None
@@ -2632,7 +2727,12 @@ def main():
                 story.interact(world, place_name, player)            # the story: a locker, a shelf, a question...
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and world.cabinet_near(player.pos) is not None:
                 machine = world.cabinet_near(player.pos)            # play the machine: it takes over the screen
+                if machine == "kombat":
+                    music.stop(); music.lost()                       # MVB Kombat has its own music
+                else:
+                    music.now("arcade_game")
                 result = arcade.play(screen, clock, machine, BASE_DIR / "saves", BASE_DIR, goal=story.arcade_goal(machine))
+                music.lost()
                 if result == "quit":
                     running = False
                 elif result == "won":
@@ -2649,8 +2749,6 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     if talk is not None:
                         talk["npc"].talking = False; talk = None
-                    else:
-                        running = False
                 elif event.key == pygame.K_TAB:
                     player.next_character()
                 elif event.key == pygame.K_F1:
@@ -2665,6 +2763,9 @@ def main():
                     fade = 0.3
                 elif event.key == pygame.K_F3:
                     show_fps = not show_fps
+                elif event.key == pygame.K_F11 and TOGGLE_DISPLAY:
+                    TOGGLE_DISPLAY()
+                    screen = pygame.display.get_surface()
                 elif event.key in DEV_TELEPORTS and not world.interior and talk is None:   # testing shortcut
                     to, (tx, ty), facing_ = DEV_TELEPORTS[event.key]
                     if to in PLACES:
@@ -2690,6 +2791,21 @@ def main():
         pocket.update(clock.get_time() / 1000)
         world.update(min(clock.get_time() / 1000, 0.05), pygame.Rect(player.hitbox()), clock_.hour, clock_.is_night())
         story.update(min(clock.get_time() / 1000, 0.05), world, place_name, player, PLACES)
+        # ---- the music for wherever you are
+        if story.cutscene is not None and (story.scene is not None or len(story.cutscene.lines) >= 5):
+            music.want("detective")                            # the story's scenes and time echoes
+        elif world.interior is not None and world.interior["kind"] == "arcade":
+            music.want("arcade")
+        else:
+            music.want("night" if clock_.is_night() else "day")
+        music.update(min(clock.get_time() / 1000, 0.05))
+        if story.ended:                                        # the end: the film, then back to the main menu
+            music.stop()
+            if video.play(screen, clock, BASE_DIR / "art" / "videos") == "quit":
+                running = False
+            else:
+                outcome, running = "title", False
+            continue
         if talk is not None and math.hypot(talk["npc"].x - player.pos.x, talk["npc"].y - player.pos.y) > 140:
             talk["npc"].talking = False; talk = None
         while accumulator >= FIXED_DT:
@@ -2774,7 +2890,7 @@ def main():
         # ---- player shadow sits on the ground (or on the step you're on)
         px, py = round(p.x), round(p.y)
         stair_dy = world.stair_offset(px, py)
-        if stair_dy < 10:
+        if stair_dy < 10 and not story.hide_player:
             screen.blit(player.shadow, player.shadow.get_rect(center=(px + ox, py + oy + 4 + min(0, stair_dy))))
 
         # ---- depth-sorted layer: whatever is lower on screen is drawn in front
@@ -2789,6 +2905,8 @@ def main():
         drawn_player = False
         reveal = p_rect.inflate(200, 150)                    # x-ray window through far-side roofs
         for sp in layer:
+            if sp is None and story.hide_player:                 # on the bus
+                continue
             if sp is None:
                 if stair_dy > 0:                             # going down: you sink below the steps in front of you
                     d = int(stair_dy)
@@ -2914,7 +3032,7 @@ def main():
 
     clock_.save()
     pocket.notebook.save()
-    pygame.quit()
+    return outcome
 
 
 if __name__ == "__main__":

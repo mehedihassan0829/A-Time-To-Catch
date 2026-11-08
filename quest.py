@@ -26,11 +26,12 @@ DOORS = {
     "arcade": ("Harbourside", (29, 45), "arcade"),
     "usher": ("Park Street", (11, 18), "usher"),
     "gazette": ("Park Street", (122, 19), "gazette"),
+    "hostel": ("Park Street", (38, 19), "hostel"),
 }
 SEAGULL_FRONT = (3, 2)            # in the arcade: in front of the Seagull Bird machine on the back wall
 LOCKER_FRONT = (21, 5)            # in the store room: in front of John's locker
 SHELF_FRONT = (19, 2)             # in the store room: in front of the staff records
-STATION_EDGE = ("Park Street", 0, (20, 21, 22))   # off the top of Park Street, up towards Clifton Down
+BUS_STOP = ("Park Street", (95, 29), (98, 29))   # the College Green bus stop: where you wait (tiles), the bus to Clifton Down
 VIEW_ITEMS = {"newspaper": "paper2026", "old_photo": "photo1999", "emily_photo": "photo1999", "cutting": "paper1999",
               "record1998": "record1998", "record1999": "record1999", "ju_photo": "ju_photo"}
 
@@ -327,13 +328,16 @@ class Story:
         self.fade_fn = None
         self.photos = {}
         self.ids = {}                       # who's who in the world now: "martin", "barista", "daniel", ...
+        self.ended = False                  # the story's over: time for the film
+        self.choice = None                  # a question with options on screen (the hostel: sleep until when?)
+        self.hide_player = False            # the detective's on the bus
         self.cutscene = Cutscene(S.OPENING, self)
 
     # ---- what's going on
     @property
     def busy(self):
         """True while a cut scene, a document or a fade has the screen (no walking about, no other keys)."""
-        return self.cutscene is not None or self.reading is not None or self.fade > 0
+        return self.cutscene is not None or self.reading is not None or self.fade > 0 or self.choice is not None
 
     def objective(self):
         return S.OBJECTIVES[self.obj] if self.obj < len(S.OBJECTIVES) else None
@@ -360,8 +364,10 @@ class Story:
         text = ob["label"]
         if ob["id"] == "wait_emily" and self.emily_cafe:
             text = f"Wait for Emily Carter at {self.emily_cafe[1]['brand'].title()} (she comes in at 6pm)"
+            if not self._open("cafe"):
+                text = "Emily comes in at 6pm and the café's shut - rest at the Night Owl hostel until then"
         if ob["id"] in ("arcade", "high_score", "locker", "records") and not self._open("arcade"):
-            text += " (the arcade opens at 10:00 - hold T to pass the time)"
+            text += " (the arcade opens at 10:00 - rest at the Night Owl hostel, or hold T)"
         return text
 
     def _open(self, kind):
@@ -427,6 +433,7 @@ class Story:
             if a.id.endswith("_staff"):
                 if kind == "arcade":
                     a.name = "Martin Bell"; a.lines = [["Enjoy the games."]]; self.ids["martin"] = a.id
+                    a.look = people.SUSPECTS["martin"]; a.frames = {}
                 elif kind == "cafe":
                     self.ids["barista"] = a.id
                 elif kind == "corner":
@@ -477,8 +484,11 @@ class Story:
         elif o == "wait_emily" and kind == "cafe" and self.emily_cafe and self.shop is self.emily_cafe[1] \
                 and 18 <= self.clock.hour < 19.9 and "emily_here" not in self.flags and not self.later:
             self.later.append([0.8, self._emily_arrives])
-        elif o == "station" and place == STATION_EDGE[0] and kind is None and px < 1.3 * TILE:
-            self.start(S.ENDING, lambda: self.complete("Thanks for playing. To be continued..."))
+
+    def _the_end(self):
+        self.obj = len(S.OBJECTIVES)
+        self.compass.steps = None
+        self.ended = True                    # the game plays the film, then goes back to the main menu
 
     def complete_quiet(self):
         """Move on without the 'new objective' pop-up (the next scene says it)."""
@@ -501,6 +511,16 @@ class Story:
         near = lambda tx, ty, r: math.hypot(px - (tx + 0.5) * TILE, py - (ty + 0.5) * TILE) < r * TILE
         if kind == "corner" and "newspaper" not in self.flags and self._near_staff(world, player):
             return "E: buy the morning paper"
+        if o == "station" and kind is None and place == BUS_STOP[0] and world.traffic is not None \
+                and world.traffic.bus_at_stop():
+            b = world.traffic.bus
+            if abs(px - b["x"]) < 3.5 * TILE and abs(py - b["y"]) < 2.5 * TILE:
+                return "E: get on the bus to Clifton Down"
+        if kind == "hostel":
+            tx, ty = int(px // TILE), int(py // TILE)
+            bed = any(world.at(tx + dx, ty + dy, " ") == "e" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+            if bed or self._near_staff(world, player):
+                return "E: get some rest (choose how long)"
         if o == "locker" and kind == "arcade" and near(*LOCKER_FRONT, 1.3):
             return "E: open John's locker"
         if o == "records" and kind == "arcade" and py < 3.4 * TILE and 17.5 * TILE < px < 22.5 * TILE:
@@ -518,6 +538,14 @@ class Story:
         p = self.prompt(world, place, player)
         if p is None:
             return False
+        if p.startswith("E: get on the bus"):
+            world.traffic.board_bus()
+            self.hide_player = True                  # on the bus: it pulls away with you on it
+            self.start(S.BUS_RIDE, lambda: self.start(S.ENDING, self._the_end))
+            return True
+        if p.startswith("E: get some rest"):
+            self.rest_menu()
+            return True
         if p.startswith("E: buy"):
             self.start(S.NEWSPAPER_BUY, lambda: self.open_view("paper2026"), talking=self.ids.get("shopkeeper"))
         elif p.startswith("E: open John's"):
@@ -546,6 +574,27 @@ class Story:
             self.fade, self.fade_fn = 2.0, six
             self.say("Later...", 2.0)
         return True
+
+    # ---- passing the time (the hostel)
+    def rest_menu(self):
+        """Sleep until the morning, until the arcade opens, or until the evening."""
+        def until(hour, words):
+            def go():
+                def jump():
+                    h = self.clock.hours
+                    day = int(h // 24) * 24
+                    t = day + hour
+                    if t <= h + 0.05:
+                        t += 24
+                    self.clock.hours = t
+                    self.say(f"You {words}. It's {int(hour):02d}:00.", 3.5)
+                self.fade, self.fade_fn = 2.0, jump
+            return go
+        self.choice = dict(title="Get some rest - until when?", sel=0, options=[
+            ("The morning (08:00)", until(8, "sleep until morning")),
+            ("The arcade opens (10:00)", until(10, "rest until ten")),
+            ("The evening (18:00)", until(18, "rest until six")),
+            ("Never mind", lambda: None)])
 
     def _cafe_key(self):
         return (self.shop_place, tuple(self.shop["door"])) if self.shop else None
@@ -652,6 +701,10 @@ class Story:
             return self._hop_targets(world, place, "Park Street") if place != "Park Street" else ()
         if o == "wait_emily":
             ep, shop = self.emily_cafe
+            if not self._open("cafe"):                     # shut: go and rest at the hostel till the evening
+                if kind == "hostel":
+                    return ()
+                return door("hostel")
             if kind == "cafe" and self.shop is shop:
                 return ()
             dx, dy = shop["door"]
@@ -660,8 +713,8 @@ class Story:
             side = shop["side"]
             return go_to(ep, [(dx, dy + 1) if side == "south" else (dx, dy - 1)], "up" if side == "south" else "down")
         if o == "station":
-            p, x, rows = STATION_EDGE
-            return go_to(p, [(x, y) for y in rows], "left")
+            p, a, b = BUS_STOP
+            return go_to(p, [(x, a[1]) for x in range(a[0], b[0] + 1)], None)
         return ()
 
     def _hop_targets(self, world, place, goal):
@@ -921,6 +974,28 @@ class Story:
             return "quit"
         advance = (ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1) or \
                   (ev.type == pygame.KEYDOWN and ev.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN))
+        if self.choice is not None:
+            c = self.choice
+            if ev.type == pygame.KEYDOWN:
+                if ev.key in (pygame.K_UP, pygame.K_w):
+                    c["sel"] = (c["sel"] - 1) % len(c["options"])
+                elif ev.key in (pygame.K_DOWN, pygame.K_s):
+                    c["sel"] = (c["sel"] + 1) % len(c["options"])
+                elif ev.key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_e):
+                    self.choice = None; c["options"][c["sel"]][1]()
+                elif ev.key == pygame.K_ESCAPE:
+                    self.choice = None
+                elif pygame.K_1 <= ev.key <= pygame.K_9 and ev.key - pygame.K_1 < len(c["options"]):
+                    self.choice = None; c["options"][ev.key - pygame.K_1][1]()
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                for i, r in enumerate(c.get("rects", [])):
+                    if r.collidepoint(ev.pos):
+                        self.choice = None; c["options"][i][1]()
+            elif ev.type == pygame.MOUSEMOTION:
+                for i, r in enumerate(c.get("rects", [])):
+                    if r.collidepoint(ev.pos):
+                        c["sel"] = i
+            return None
         if self.cutscene:
             if advance:
                 self.cutscene.advance()
@@ -985,10 +1060,35 @@ class Story:
             self._draw_doc(screen, self.reading, w, h)
             m = f["small"].render("click (or Esc) to put it away", True, (220, 216, 200))
             screen.blit(m, (w // 2 - m.get_width() // 2, h - 24))
+        if self.choice is not None:
+            self._draw_choice(screen, f, w, h)
         if self.fade > 0:
             a = min(1.0, (2.0 - self.fade) / 0.6) if self.fade > 1.0 else min(1.0, self.fade / 0.6)
             dark = pygame.Surface((w, h)); dark.fill((0, 0, 0)); dark.set_alpha(int(255 * a))
             screen.blit(dark, (0, 0))
+
+    def _draw_choice(self, screen, f, w, h):
+        c = self.choice
+        bw = 520
+        bh = 70 + len(c["options"]) * 44
+        x0, y0 = (w - bw) // 2, (h - bh) // 2
+        panel = pygame.Surface((bw, bh), pygame.SRCALPHA)
+        panel.fill((14, 16, 24, 236))
+        pygame.draw.rect(panel, (230, 190, 90), panel.get_rect(), 2)
+        screen.blit(panel, (x0, y0))
+        t = f["name"].render(c["title"], True, (240, 220, 160))
+        screen.blit(t, ((w - t.get_width()) // 2, y0 + 18))
+        c["rects"] = []
+        for i, (label, _) in enumerate(c["options"]):
+            r = pygame.Rect(x0 + 30, y0 + 56 + i * 44, bw - 60, 36)
+            if i == c["sel"]:
+                pygame.draw.rect(screen, (60, 52, 30), r)
+                pygame.draw.rect(screen, (230, 190, 90), r, 2)
+            img = f["text"].render(f"{i + 1}.  {label}", True, (255, 240, 200) if i == c["sel"] else (220, 220, 226))
+            screen.blit(img, (r.x + 14, r.y + (r.h - img.get_height()) // 2))
+            c["rects"].append(r)
+        m = f["small"].render("Up / Down and Enter, a number, or click  -  Esc: never mind", True, (180, 176, 168))
+        screen.blit(m, ((w - m.get_width()) // 2, y0 + bh + 8))
 
     def _draw_doc(self, screen, view, w, h, lift=0):
         dim = pygame.Surface((w, h), pygame.SRCALPHA); dim.fill((0, 0, 0, 170))

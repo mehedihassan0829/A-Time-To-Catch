@@ -13,22 +13,12 @@ import daynight
 TILE = 64
 
 # ------------------------------------------------------------------ how the people in the flashbacks look
-_BASE = dict(shoe=(44, 38, 36), jacket=None, beard=False, glasses=False, bag=None, hat=(0, 0, 0), apron=None)
-LOOKS = {
-    "john": dict(_BASE, skin=(241, 194, 150), hair=(60, 40, 28), style="short", shirt=(200, 60, 60),
-                 jacket=(50, 52, 58), pants=(40, 46, 70), shoe=(240, 240, 236)),
-    "jack": dict(_BASE, skin=(241, 194, 150), hair=(60, 40, 28), style="short", shirt=(180, 40, 40),
-                 pants=(30, 30, 34), beard=True),
-    "usher_old": dict(_BASE, skin=(255, 220, 186), hair=(200, 200, 200), style="short", shirt=(220, 226, 236),
-                      jacket=(120, 96, 64), pants=(70, 64, 56), shoe=(90, 60, 40), glasses=True),
-    "usher_young": dict(_BASE, skin=(255, 220, 186), hair=(150, 100, 54), style="short", shirt=(180, 40, 40),
-                        pants=(30, 30, 34), glasses=True),
-    "emily": dict(_BASE, skin=(224, 172, 120), hair=(30, 26, 24), style="long", shirt=(230, 150, 170),
-                  jacket=(60, 80, 120), pants=(40, 46, 70), bag=(90, 60, 40)),
-    "shadow": dict(_BASE, skin=(30, 30, 30), hair=(20, 20, 20), style="hood", hat=(20, 20, 20), shirt=(20, 20, 20),
-                   jacket=(20, 20, 20), pants=(20, 20, 20)),
-    "worker": dict(_BASE, skin=(224, 172, 120), hair=(30, 26, 24), style="short", shirt=(180, 40, 40), pants=(30, 30, 34)),
-}
+LOOKS = dict(people.SUSPECTS)       # the suspects and John always look the same (people.SUSPECTS)
+LOOKS["shadow"] = dict(people.SUSPECTS["john"], skin=(30, 30, 30), hair=(20, 20, 20), style="hood", hat=(20, 20, 20),
+                       shirt=(20, 20, 20), jacket=(20, 20, 20), pants=(20, 20, 20))
+LOOKS["worker"] = dict(people.SUSPECTS["usher_young"], skin=(224, 172, 120), hair=(30, 26, 24), glasses=False)
+LOOKS["worker2"] = dict(people.SUSPECTS["usher_young"], skin=(198, 134, 88), hair=(196, 150, 84), style="ponytail",
+                        glasses=False)
 
 # ------------------------------------------------------------------ the scenes
 # world: ("place", name) a map as it was (no police tape)  /  ("room", kind) a room  /  ("cafe",) the café Emily goes to
@@ -49,7 +39,7 @@ SCENES = {
     "harbour_view": dict(world=("place", "Harbourside"), centre=(46.5, 47.0), people={}),
     "photo1999": dict(world=("place", "Harbourside"), centre=(29.5, 45.3),
                       people={"w1": ("worker", 28.2, 46.4, "down"), "w2": ("jack", 28.9, 46.5, "down"),
-                              "w3": ("usher_young", 29.6, 46.4, "down"), "w4": ("worker", 30.4, 46.5, "down")}),
+                              "w3": ("usher_young", 29.6, 46.4, "down"), "w4": ("worker2", 30.4, 46.5, "down")}),
     "ju_photo": dict(world=("place", "Harbourside"), centre=(29.5, 46.0),
                      people={"jack": ("jack", 29.0, 46.8, "down"), "usher": ("usher_young", 29.95, 46.8, "down")}),
 }

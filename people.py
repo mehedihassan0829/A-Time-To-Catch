@@ -29,12 +29,51 @@ Rhys Rosa Rubi Ruth Sam Sami Sana Seren Shay Sian Sol Sophie Suki Tariq Tess The
 Zach Zara Zeynep Zofia Bryn Cerys Dylan Elis Gethin Lowri Owain Tegan Aled Ffion""".split()
 
 _LOOKS = {}          # npc id -> look (so the same person looks the same every time you see them)
+
+# The suspects (and John) always look the same, wherever you meet them - each with something that makes them stand
+# out: Daniel's flat cap, PRESS lanyard and satchel; Martin's purple arcade polo, cap and name badge; Emily's red hair,
+# yellow raincoat and green scarf; Professor Usher's tweed, bow tie and glasses (and, back in 1999, the arcade uniform);
+# Jack's denim jacket over the 1999 uniform. Extra keys: coat (long coat), scarf, bowtie, lanyard, badge, patches.
+_PLAIN = dict(shoe=(44, 38, 36), jacket=None, beard=False, glasses=False, bag=None, hat=(0, 0, 0), apron=None)
+SUSPECTS = {
+    "daniel": dict(_PLAIN, skin=(224, 172, 120), hair=(70, 50, 36), style="flatcap", hat=(92, 78, 62), beard=True,
+                   glasses=True, shirt=(206, 220, 238), jacket=(128, 90, 56), pants=(52, 58, 74), shoe=(110, 70, 40),
+                   bag=(120, 74, 40), lanyard=(200, 40, 40)),
+    "martin": dict(_PLAIN, skin=(160, 104, 66), hair=(30, 26, 24), style="cap", hat=(250, 200, 40),
+                   shirt=(120, 50, 170), pants=(30, 30, 34), shoe=(240, 240, 236), badge=(250, 210, 60)),
+    "emily": dict(_PLAIN, skin=(255, 220, 186), hair=(190, 84, 36), style="long", shirt=(240, 236, 226),
+                  coat=(232, 184, 46), scarf=(50, 140, 90), pants=(40, 46, 70), shoe=(110, 40, 40)),
+    "usher_old": dict(_PLAIN, skin=(255, 220, 186), hair=(200, 200, 200), style="short", shirt=(232, 232, 226),
+                      jacket=(122, 98, 66), patches=(80, 60, 40), bowtie=(170, 30, 40), pants=(76, 70, 62),
+                      shoe=(90, 60, 40), glasses=True),
+    "usher_young": dict(_PLAIN, skin=(255, 220, 186), hair=(150, 100, 54), style="short", shirt=(180, 40, 40),
+                        pants=(30, 30, 34), glasses=True, badge=(250, 210, 60)),
+    "jack": dict(_PLAIN, skin=(241, 194, 150), hair=(60, 40, 28), style="curly", shirt=(180, 40, 40),
+                 jacket=(66, 98, 150), pants=(40, 46, 70), beard=True, badge=(250, 210, 60)),
+    "john": dict(_PLAIN, skin=(241, 194, 150), hair=(60, 40, 28), style="short", shirt=(200, 60, 60),
+                 jacket=(50, 52, 58), pants=(40, 46, 70), shoe=(240, 240, 236)),
+}
+_LOOKS.update({"crime_daniel": SUSPECTS["daniel"], "daniel": SUSPECTS["daniel"], "emily": SUSPECTS["emily"]})
 _USED = set()        # look signatures already given out (everybody is unique)
 _NAMES_USED = set()
 
 
 def hexrgb(h):
     h = h.lstrip("#"); return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _like_a_suspect(lk):
+    """True if a random passer-by would look too much like one of the suspects."""
+    ginger = lk["hair"][0] > 150 and lk["hair"][1] < 110 and lk["hair"][2] < 80
+    if ginger and lk["style"] in ("long", "ponytail", "bun"):                       # Emily's red hair
+        return True
+    if lk["style"] == "cap" and lk["shirt"][2] > 120 and lk["shirt"][0] > 90 and lk["shirt"][1] < 90:   # Martin's polo
+        return True
+    if lk["hair"][0] > 190 and lk["glasses"] and lk["jacket"]:                       # Usher's grey hair, glasses, tweed
+        return True
+    if lk["glasses"] and lk["beard"] and lk["bag"]:                                   # Daniel
+        return True
+    return False
 
 
 def make_look(npc_id, seed, role="public", over=None):
@@ -103,6 +142,8 @@ def make_look(npc_id, seed, role="public", over=None):
             if "hat" in over: lk["hat"] = hexrgb(over["hat"]); lk["style"] = "beanie"
             for k in ("shirt", "pants", "hair", "skin"):
                 if k in over: lk[k] = hexrgb(over[k])
+        if _like_a_suspect(lk) and not over:
+            continue                                     # nobody else gets mistaken for one of the suspects
         sig = tuple(sorted((k, str(v)) for k, v in lk.items()))
         if sig not in _USED:
             break
@@ -164,6 +205,12 @@ def _head(s, lk, d, ox, oy, closed=False):
         elif d == "left": R(s, shade(hat, 0.7), ox + 1, oy + 2, 3, 1)
         elif d == "right": R(s, shade(hat, 0.7), ox + 8, oy + 2, 3, 1)
         else: R(s, hair, ox + 3, oy + 2, 6, 3)
+    elif style == "flatcap":                                         # a tweedy flat cap, peak to the front
+        R(s, hat, ox + 3, oy - 1, 6, 3); R(s, shade(hat, 1.2), ox + 3, oy - 1, 6, 1)
+        if d == "down": R(s, shade(hat, 0.75), ox + 3, oy + 2, 6, 1)
+        elif d == "left": R(s, shade(hat, 0.75), ox + 1, oy + 1, 3, 1); R(s, hair, ox + 7, oy + 2, 2, 2)
+        elif d == "right": R(s, shade(hat, 0.75), ox + 8, oy + 1, 3, 1); R(s, hair, ox + 3, oy + 2, 2, 2)
+        else: R(s, hair, ox + 3, oy + 2, 6, 3)
     elif style == "beanie":
         R(s, hat, ox + 3, oy - 1, 6, 3); R(s, shade(hat, 1.2), ox + 3, oy + 1, 6, 1); P(s, shade(hat, 1.3), ox + 6, oy - 2)
         if d == "up": R(s, hair, ox + 3, oy + 2, 6, 3)
@@ -215,6 +262,32 @@ def _torso(s, lk, d, ox, oy, h=6):
         a = lk["apron"]
         R(s, a, tx + 1, oy + 1, tw - 2, h + 1)
         if d == "down": P(s, shade(a, 1.3), tx + 1, oy + 1)
+    if lk.get("coat"):                                               # a long coat over the top
+        c = lk["coat"]
+        if d == "up":
+            R(s, c, tx, oy, tw, h)
+        elif d == "down":
+            R(s, c, tx, oy, 2, h); R(s, c, tx + tw - 2, oy, 2, h); R(s, shade(c, 0.8), tx, oy + 3, tw, 1)
+        else:
+            R(s, c, tx + (1 if d == "left" else 0), oy, 3, h)
+    if lk.get("patches") and d in ("left", "right"):                 # elbow patches on the tweed
+        P(s, lk["patches"], tx + (1 if d == "left" else 2), oy + 3)
+    if d == "down":
+        if lk.get("lanyard"):                                       # PRESS lanyard
+            P(s, lk["lanyard"], tx + 1, oy); P(s, lk["lanyard"], tx + 4, oy)
+            P(s, lk["lanyard"], tx + 2, oy + 1); P(s, lk["lanyard"], tx + 3, oy + 1)
+            R(s, (244, 244, 240), tx + 2, oy + 2, 2, 2); P(s, (200, 40, 40), tx + 2, oy + 2)
+        if lk.get("badge"):                                         # name badge
+            P(s, lk["badge"], tx + 4, oy + 1)
+        if lk.get("bowtie"):
+            P(s, lk["bowtie"], tx + 2, oy); P(s, lk["bowtie"], tx + 3, oy)
+            P(s, shade(lk["bowtie"], 0.7), tx + 1, oy); P(s, shade(lk["bowtie"], 0.7), tx + 4, oy)
+    if lk.get("scarf") and d != "up":
+        R(s, lk["scarf"], tx, oy, tw, 1)
+        if d == "down": R(s, lk["scarf"], tx + 1, oy + 1, 1, 3)
+        else: P(s, lk["scarf"], tx + (3 if d == "left" else 0), oy + 1)
+    elif lk.get("scarf"):
+        R(s, lk["scarf"], tx, oy, tw, 1)
     if lk["bag"] and d in ("up", "left", "right"):
         R(s, lk["bag"], tx + (tw if d == "left" else -2) if d != "up" else tx + 1, oy + 1, 2 if d != "up" else tw - 2, 4)
 
@@ -291,8 +364,15 @@ def person(lk, d="down", f=0, pose="walk", tool=None):
         R(s, pants, 5 + swing, 12 + bob, 2, 5 - bob); R(s, shoe, 5 + swing, 17, 3, 1)
     if lk["style"] == "long" and dd == "down":
         R(s, lk["hair"], 2, 2 + bob, 8, 7)
+    if lk.get("coat"):                                               # the coat comes down over the knees
+        c = lk["coat"]
+        if dd in ("down", "up"):
+            R(s, c, 3, 12 + bob, 6, 3); R(s, shade(c, 0.8), 3, 14 + bob, 6, 1)
+            if dd == "down": P(s, shade(c, 0.7), 6, 12 + bob)
+        else:
+            R(s, c, 4, 12 + bob, 4, 3); R(s, shade(c, 0.8), 4, 14 + bob, 4, 1)
     _torso(s, lk, dd, 0, 7 + bob)
-    arm = shade(lk["jacket"] or lk["shirt"], 0.9)
+    arm = shade(lk.get("coat") or lk["jacket"] or lk["shirt"], 0.9)
     if pose == "dance":                                              # hands in the air, taking turns
         k = f % 4
         for x, up_ in ((2, k in (0, 1)), (9, k in (1, 2))):
@@ -397,6 +477,7 @@ LINES = {
     "police": [["Sorry, I can't let you past the tape."], ["Forensics will be a while yet."]],
     "forensic": [["Please stay behind the tape."]],
     "journalist": [["..."]],
+    "receptionist": [["Welcome to the Night Owl. Bed's yours whenever you need it."]],
     "chef": [["Hot plates! Mind your hands.", "Fresh batch coming up in two minutes."], ["Try the curry. Trust me."],
              ["Everything's cooked right here, in front of you."]],
     "waiter": [["Table for how many?", "Grab a plate and help yourself - drinks are bottomless."],
@@ -862,6 +943,7 @@ WORK = {   # shop kind -> (role at the counter, pose, tool, facing)
     "clothes": ("assistant", "work", "cloth", "down"), "books": ("bookseller", "work", "book", "down"),
     "gym": ("gym", "stand", None, "down"), "club": ("bartender", "work", "cup", "down"),
     "arcade": ("attendant", "stand", None, "down"), "zaza": ("waiter", "stand", None, "down"),
+    "hostel": ("receptionist", "stand", None, "down"),
 }
 
 

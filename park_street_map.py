@@ -164,7 +164,7 @@ SHOPS = [
     # the Wills Memorial Building's front door (Professor Usher's office is inside)
     {'building': 62, 'kind': 'usher', 'door': (11, 18), 'side': 'south', 'brand': 'WILLS MEMORIAL BUILDING', 'centre': 11.5},
     {'building': 70, 'kind': 'cafe', 'door': (35, 19), 'side': 'south', 'brand': 'SLOW DRIP', 'centre': 35.5},
-    {'building': 71, 'kind': 'clothes', 'door': (38, 19), 'side': 'south', 'brand': 'SOLE MATES', 'centre': 38.5},
+    {'building': 71, 'kind': 'hostel', 'door': (38, 19), 'side': 'south', 'brand': 'NIGHT OWL', 'centre': 38.5},
     {'building': 72, 'kind': 'cafe', 'door': (41, 19), 'side': 'south', 'brand': 'FIKA', 'centre': 41.5},
     {'building': 73, 'kind': 'clothes', 'door': (44, 19), 'side': 'south', 'brand': 'SECOND WIND', 'centre': 45.0},
     {'building': 75, 'kind': 'cafe', 'door': (50, 19), 'side': 'south', 'brand': 'OAT & ALMOND', 'centre': 51.0},
@@ -274,7 +274,7 @@ BUILDINGS = [
     {'style': 'H', 'stone': (210, 200, 186), 'roof': (92, 100, 114), 'variant': 3, 'seed': 24478, 'floors': 3, 'shop': False, 'kind': None, 'awning': None},
     {'style': 'H', 'stone': (220, 230, 210), 'roof': (84, 92, 104), 'variant': 1, 'seed': 1818, 'floors': 3, 'shop': False, 'kind': None, 'awning': None},
     {'style': 'H', 'stone': (238, 230, 208), 'roof': (92, 100, 114), 'variant': 1, 'seed': 81129, 'floors': 3, 'shop': True, 'kind': 'cafe', 'awning': (36, 42, 60), 'away': False, 'brand': {'name': 'SLOW DRIP', 'kind': 'cafe', 'bg': (236, 232, 220), 'fg': (90, 30, 30), 'style': 2}},
-    {'style': 'H', 'stone': (232, 218, 206), 'roof': (104, 110, 120), 'variant': 0, 'seed': 55675, 'floors': 2, 'shop': True, 'kind': 'clothes', 'awning': (28, 62, 50), 'away': False, 'brand': {'name': 'SOLE MATES', 'kind': 'clothes', 'bg': (24, 24, 28), 'fg': (240, 210, 120), 'style': 0}},
+    {'style': 'H', 'stone': (232, 218, 206), 'roof': (104, 110, 120), 'variant': 0, 'seed': 55675, 'floors': 2, 'shop': True, 'kind': 'hostel', 'awning': (28, 62, 50), 'away': False, 'brand': {'name': 'NIGHT OWL', 'kind': 'hostel', 'bg': (40, 34, 70), 'fg': (240, 210, 120), 'style': 0}},
     {'style': 'H', 'stone': (226, 208, 166), 'roof': (96, 92, 98), 'variant': 1, 'seed': 16411, 'floors': 3, 'shop': True, 'kind': 'cafe', 'awning': (156, 44, 44), 'away': False, 'brand': {'name': 'FIKA', 'kind': 'cafe', 'bg': (140, 60, 120), 'fg': (255, 255, 255), 'style': 5}},
     {'style': 'H', 'stone': (220, 230, 210), 'roof': (104, 110, 120), 'variant': 1, 'seed': 29917, 'floors': 3, 'shop': True, 'kind': 'clothes', 'awning': (32, 32, 36), 'away': False, 'brand': {'name': 'SECOND WIND', 'kind': 'clothes', 'bg': (80, 50, 40), 'fg': (244, 238, 222), 'style': 5}},
     {'style': 'H', 'stone': (238, 230, 208), 'roof': (92, 100, 114), 'variant': 1, 'seed': 85351, 'floors': 3, 'shop': False, 'kind': None, 'awning': None},

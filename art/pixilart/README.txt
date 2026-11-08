@@ -18,3 +18,13 @@ signs/       every shop's brand sign
 map/         the whole Park Street map (and in four sections), and Frogmore Street under the bridge
 
 Building outlines are based on OpenStreetMap: Map data (c) OpenStreetMap contributors.
+
+Drawings added for the story:
+  characters/detective/   the detective (trench coat), walking each way
+  characters/suspects/    Professor Peter Usher (now and in 1999), Emily Carter, Martin Bell, Daniel Shaw,
+                          Jack Harper (1999) and John Harper: walking, standing (and sitting where they sit)
+  characters/story_extras/ the police officer, forensic investigators, the shadowy figure, the hostel receptionist...
+  story/                  the crime scene, the rooms' furniture (offices, the arcade store room, the hostel, the flat),
+                          whole rooms, pocket items, the documents and the time echoes
+  buildings/park_street_shops/  The Gazette and the Night Owl hostel
+  props/                  the bus to Clifton Down and the bus stop

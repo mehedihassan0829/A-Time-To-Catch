@@ -17,3 +17,6 @@ pygame-ce>=2.5.8
 # MVB Kombat (one of the arcade machines on the harbourside) uses pygame-widgets for its menus.
 # It only needs pyperclip, so it works alongside pygame-ce.
 pygame-widgets>=1.3.2
+# The film at the end of the story (art/videos) is played with OpenCV. Without it the game still runs
+# (it shows a "to be continued" card instead).
+opencv-python>=4.8

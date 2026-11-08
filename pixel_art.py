@@ -1337,6 +1337,14 @@ def character_frames(look):
             else:
                 R(s, shade(pants, 0.8), 5 - swing, 12 + bob, 2, 5 - bob); R(s, shoe, 4 - swing, 17, 3, 1)
                 R(s, pants, 5 + swing, 12 + bob, 2, 5 - bob); R(s, shoe, 5 + swing, 17, 3, 1)
+            # a long coat (the detective's trench coat) down over the knees
+            coat = rgb(look["coat"]) if look.get("coat") else None
+            if coat:
+                if d in ("down", "up"):
+                    R(s, coat, 2, 12 + bob, 8, 3); R(s, shade(coat, 0.8), 2, 14 + bob, 8, 1)
+                    if d == "down": R(s, shade(coat, 0.72), 6, 12 + bob, 1, 3)        # where it opens
+                else:
+                    R(s, coat, 3, 12 + bob, 6, 3); R(s, shade(coat, 0.8), 3, 14 + bob, 6, 1)
             # long hair / backpack behind
             if style == "long" and d == "down":
                 R(s, hair, 2, 2 + bob, 8, 7)
@@ -1345,18 +1353,28 @@ def character_frames(look):
             # torso
             tw = 6 if d != "left" else 4
             tx = 6 - tw // 2
-            R(s, shirt, tx, 7 + bob, tw, 6)
-            R(s, shade(shirt, 0.78), tx, 11 + bob, tw, 2)
-            R(s, shade(shirt, 1.15), tx, 7 + bob, 1, 4)
+            top = coat or shirt
+            R(s, top, tx, 7 + bob, tw, 6)
+            R(s, shade(top, 0.78), tx, 11 + bob, tw, 2)
+            R(s, shade(top, 1.15), tx, 7 + bob, 1, 4)
+            if coat:
+                if d == "down":
+                    R(s, shirt, 5, 7 + bob, 2, 3)                               # shirt and tie in the open front
+                    P(s, (120, 30, 34), 5, 8 + bob); P(s, (120, 30, 34), 5, 9 + bob)
+                    P(s, shade(coat, 1.2), 3, 7 + bob); P(s, shade(coat, 1.2), 8, 7 + bob)   # collar turned up
+                R(s, shade(coat, 0.62), tx, 10 + bob, tw, 1)                    # the belt
+                if d == "down": P(s, (200, 170, 90), 6, 10 + bob)               # buckle
+                if d == "up": P(s, shade(coat, 0.62), 5, 11 + bob); P(s, shade(coat, 0.62), 6, 12 + bob)
             if look.get("collar") and d == "down":
                 P(s, rgb(look["collar"]), 5, 7 + bob); P(s, rgb(look["collar"]), 6, 7 + bob)
             # arms
+            sleeve = shade(top, 0.9)
             if d in ("down", "up"):
                 for x, sw in ((2, swing), (9, -swing)):
-                    R(s, shade(shirt, 0.9), x, 7 + bob + max(0, sw), 1, 4)
+                    R(s, sleeve, x, 7 + bob + max(0, sw), 1, 4)
                     P(s, skin, x, 11 + bob + max(0, sw))
             else:
-                R(s, shade(shirt, 0.9), 5 + swing, 8 + bob, 2, 4)
+                R(s, sleeve, 5 + swing, 8 + bob, 2, 4)
                 P(s, skin, 5 + swing, 12 + bob)
             # head
             if style == "robot":
@@ -1393,6 +1411,12 @@ def character_frames(look):
                     P(s, (30, 28, 34), 4, 4 + bob); P(s, (30, 28, 34), 7, 4 + bob)
                 elif d == "left":
                     P(s, (30, 28, 34), 3, 4 + bob)
+                if look.get("cig") and d != "up":                        # a cigarette, always, with a glowing tip
+                    ember = (255, 120, 40) if f % 2 == 0 else (255, 196, 80)
+                    if d == "down":
+                        R(s, (244, 242, 236), 7, 5 + bob, 3, 1); P(s, ember, 10, 5 + bob)
+                    else:
+                        R(s, (244, 242, 236), 1, 5 + bob, 2, 1); P(s, ember, 0, 5 + bob)
             img = up(add_outline(s)).convert_alpha()
             frames[(d, f)] = img
             if d == "left":
@@ -3205,3 +3229,21 @@ def cutting_icon():
     for y in (5, 7, 9):
         R(s, (130, 116, 96), 1, y, 4, 1); R(s, (130, 116, 96), 6, y, 5, 1)
     return up(add_outline(s)).convert_alpha()
+
+
+def bunk_bed(seed=0):
+    """A hostel bunk bed: metal frame, two mattresses, a different blanket on each."""
+    rng = random.Random(seed)
+    s = canvas(L, 26)
+    frame = (70, 76, 88)
+    for x in (0, L - 2):
+        R(s, OUTLINE, x, 0, 2, 26); R(s, frame, x, 1, 1, 24)
+    for y, blanket in ((2, rng.choice([(60, 90, 150), (150, 50, 50), (60, 120, 80)])),
+                       (14, rng.choice([(200, 150, 60), (110, 70, 140), (40, 110, 120)]))):
+        R(s, OUTLINE, 1, y, L - 2, 9)
+        R(s, (236, 232, 222), 2, y + 1, L - 4, 3)                      # pillow end / sheet
+        R(s, (250, 248, 244), 3, y + 1, 4, 2)                          # pillow
+        R(s, blanket, 2, y + 4, L - 4, 4); R(s, shade(blanket, 1.2), 2, y + 4, L - 4, 1)
+        R(s, frame, 1, y + 8, L - 2, 1)
+    R(s, frame, 4, 11, 1, 3); R(s, frame, 4, 12, 3, 1)                 # the ladder
+    return up(s).convert_alpha()

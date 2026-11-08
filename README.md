@@ -38,7 +38,8 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 | F1 | show hitboxes |
 | F3 | show FPS |
 | F5 / F6 / F7 | *(testing)* jump to the Frogmore steps / Park Street stairwell / the arcade |
-| Esc | close / quit |
+| Esc | pause menu (resume, controls, music volume, full screen / window, main menu, quit) |
+| F11 | full screen / window |
 
 ## Playing the story
 
@@ -53,11 +54,31 @@ The compass at the top of the screen always points the way to walk to your next 
 5. **The Gazette** (Daniel's newspaper office on Park Street). Daniel finds the 1999 front page: Jack Harper, 31, found dead in the river.
 6. **The arcade's store room.** The 1999 staff binder is missing from the shelf. The 1998 one has P. Usher on it.
 7. **Usher's office again.** It's been packed up. You find the missing 1999 record and the photograph of Jack and Usher, which brings on the last echo. Then Usher's computer shows the train times.
-8. **Clifton Down station.** Run off the top of Park Street. To be continued...
+8. **Clifton Down station.** Catch the bus at the College Green stop on Park Street: wait at the shelter, and press E when the bus pulls in. It takes you to Clifton Down, and the film plays.
 
 Optional: buy the morning paper at Park Stores on the way to the crime scene.
 
 Everything you pick up goes into your pocket (two rows of eight). You can read the papers, records and photographs again from there with **Enter**. All the dialogue is in `quest_script.py`, so the story can be edited without touching the game code.
+
+## Passing the time: the Night Owl hostel
+
+Some things only happen at certain times: the arcade opens at 10:00, and Emily comes into the café at 6pm. Cafés shut at 8pm. If you're early or late, go to the **Night Owl** hostel on Park Street (where Sole Mates used to be). Press E at a bed or the front desk to rest until the morning (08:00), until the arcade opens (10:00) or until the evening (18:00). When the compass needs you to wait, it says so and points you to the hostel. You can also hold T to make time pass faster.
+
+## Menus, music and the film
+
+The game opens on the **main menu** (Start, Controls, Music volume, Quit) over a view of Park Street. Press **Esc** at any time during the game to open the **pause menu**. Everything stops while it's open, even in the middle of a cut scene. From there you can resume, see the controls, change the music volume, go back to the main menu (which starts the story again) or quit. The game starts full screen. Press F11 (or use Display in the menu) to switch to a window and back. That choice and the music volume are saved in `saves/settings.json`.
+
+The music (`art/music`):
+
+| Track | Where it plays |
+|---|---|
+| `menu_music.mp3` | the main menu and the pause menu |
+| `detective.mp3` | the story's cut scenes and the time echoes |
+| `daytime.mp3` / `nightime.mp3` | out and about, by day or by night |
+| `arcade_theme.mp3` | inside the Bristol Arcade |
+| `arcade_game_music.mp3` | while you play an arcade machine (MVB Kombat keeps its own music) |
+
+**The film** (`art/videos/final.mp4`) plays at the very end, when you reach Clifton Down. Then it's back to the main menu. The game plays a lighter copy of it (`final_720p.mp4`, with the sound in `final_audio.ogg`) using OpenCV (`opencv-python`, installed automatically). Esc skips it.
 
 ## The harbourside and the arcade
 
@@ -93,6 +114,9 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `inventory.py` | the pocket and notebook |
 | `quest.py` | the story as you play it: objectives, the walking-route compass, cut scenes |
 | `quest_script.py` | everything the characters say, the narration, the objectives and the newspapers' words - edit this to change the story |
+| `menu.py` | the main menu and the pause menu |
+| `music.py` | which music plays where, with fades between tracks |
+| `video.py` | plays the film at the end |
 | `echo.py` | the time echoes (black and white flashbacks) and the opening scene in the flat |
 | `documents.py` | the things you read: newspapers, staff records, photographs, the train times |
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
