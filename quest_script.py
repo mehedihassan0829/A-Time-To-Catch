@@ -357,10 +357,10 @@ PAPER_1999 = dict(
             "Weather: showers, 16C"],
 )
 
-STAFF_1998 = ["M. Doyle - manager", "P. Usher - floor attendant", "S. Grant - cashier", "T. Okafor - technician",
-              "R. Hale - floor attendant", "L. Morgan - cashier (Saturdays)"]
-STAFF_1999 = ["M. Doyle - manager", "P. Usher - floor attendant", "J. Harper - floor attendant", "S. Grant - cashier",
-              "T. Okafor - technician", "L. Morgan - cashier (Saturdays)"]
+STAFF_1998 = ["Max Doyle - manager", "Peter Usher - floor attendant", "Smith Grant - cashier", "Terrence Okafor - technician",
+              "Ray Hale - floor attendant", "Lucifer Morgan - cashier (Saturdays)"]
+STAFF_1999 = ["Max Doyle - manager", "Peter Usher - floor attendant", "Jack Harper - floor attendant", "Smith Grant - cashier",
+              "Terrence Okafor - technician", "Lucifer Morgan - cashier (Saturdays)"]
 
 TRAINS = [   # Usher's computer, open on the train times
     ("Clifton Down", "Severn Beach", "Platform 1"),
