@@ -1,27 +1,32 @@
-"""Plays the film at the end of the story (art/videos).
+"""Plays the films (art/videos): the phone call in the opening (intro) and the film at the end of the story (final).
 
-The original is art/videos/final.mp4. The game plays a lighter copy made from it (final_720p.mp4: 1280x720, H.264,
-which decodes quickly on any computer) with its sound track as final_audio.ogg, using OpenCV (opencv-python) for the
-pictures and pygame for the sound. Without OpenCV it shows a "TO BE CONTINUED" card instead.
+The original of the end is art/videos/final.mp4. The game plays a lighter copy made from it (final_720p.mp4: 1280x720,
+H.264, which decodes quickly on any computer) with its sound track as final_audio.ogg, using OpenCV (opencv-python) for
+the pictures and pygame for the sound. Without OpenCV it shows a "TO BE CONTINUED" card instead.
+The intro is the same: intro_720p.mp4 + intro_audio.ogg (made from a 1920x1080 HEVC original with ffmpeg:
+  ffmpeg -i intro.mp4 -an -vf scale=1280:720 -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p intro_720p.mp4
+  ffmpeg -i intro.mp4 -vn -c:a libvorbis -q:a 4 intro_audio.ogg)
+and without OpenCV it's just skipped.
 Esc / Enter / Space / click skips it (after the first second).
 """
 from pathlib import Path
 import pygame
 
 
-def play(screen, clock, folder, name="final"):
-    """Returns 'quit' if the window was closed, otherwise None when it's over."""
+def play(screen, clock, folder, name="final", card="TO BE CONTINUED..."):
+    """Returns 'quit' if the window was closed, otherwise None when it's over. card = what to show if the film can't
+    play (None: nothing)."""
     folder = Path(folder)
     try:
         import cv2
     except ImportError:
         print("opencv-python isn't installed, so the film can't play (pip install opencv-python)")
-        return _card(screen, clock, "TO BE CONTINUED...")
+        return _card(screen, clock, card) if card else None
     cap = cv2.VideoCapture(str(folder / f"{name}_720p.mp4"))
     if not cap.isOpened():
         cap = cv2.VideoCapture(str(folder / f"{name}.mp4"))       # fall back on the original
     if not cap.isOpened():
-        return _card(screen, clock, "TO BE CONTINUED...")
+        return _card(screen, clock, card) if card else None
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     sound = False
     try:

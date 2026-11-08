@@ -1105,9 +1105,9 @@ def populate_interior(world, kind, seed, hour=12.0):
         w.y0, w.y1 = 3.4 * T, 11.5 * T
         npcs.append(w)
     if kind == "arcade":                                               # people playing some of the machines
-        k = 0                                                          # (only along the back wall on the right,
-        for y in range(world.h):                                       #  so every game always has a free machine)
-            for x in range(world.w // 2, world.w):
+        k = 0                                                          # (only along the back wall on the right of
+        for y in range(world.h):                                       #  the hall, x 12-16, so every game always
+            for x in range(12, min(17, world.w)):                      #  has a free machine)
                 if world.grid[y][x] in "1234" and y == 1 and rng.random() < (0.45 if late else 0.75):
                     n = NPC(pid(f"player{k}"), x * TILE + 32, (y + 1) * TILE + 30, "customer", "stand", d="up", seed=seed + 600 + k)
                     npcs.append(n); k += 1
