@@ -473,12 +473,13 @@ def facade_landmark(b, lx, bw, tower):
     if st == "O":                                                   # OMG nightclub
         return _omg_front(bw, b.get("variant", 0)).subsurface((lx * L, 0, L, building_height(b))).copy()
     if st in ("R", "B", "Z"):                                       # harbourside: arcade, brick sheds, restaurant shed
-        key = (st, bw, b["seed"])
+        key = (st, bw, b["seed"], b.get("sign"))
         img = _HARBOUR_FRONTS.get(key)
         if img is None:
             Hh = building_height(b)
-            img = _HARBOUR_FRONTS[key] = (_arcade_front(bw, Hh) if st == "R" else
-                                         _warehouse_front(bw, Hh, b["seed"]) if st == "B" else _shed_front(bw, Hh, b["seed"]))
+            img = _HARBOUR_FRONTS[key] = (_arcade_front(bw, Hh, b.get("sign") or "BRISTOL ARCADE") if st == "R" else
+                                         _warehouse_front(bw, Hh, b["seed"]) if st == "B" else
+                                         _shed_front(bw, Hh, b["seed"], b.get("sign")))
         return img.subsurface((lx * L, 0, L, img.get_height())).copy()
     rng = random.Random(b["seed"] * 7 + lx)
     H = TOWER_H if tower else building_height(b)
@@ -2341,7 +2342,7 @@ def arcade_carpet(v=0):
 
 
 # ---- building fronts for the harbourside
-def _arcade_front(bw, H):
+def _arcade_front(bw, H, name="BRISTOL ARCADE"):
     """The old aquarium, now an arcade: glass front, the cabinets glowing inside, a big neon sign."""
     W = bw * L
     s = canvas(W, H)
@@ -2364,7 +2365,6 @@ def _arcade_front(bw, H):
     R(s, OUTLINE, dx - 1, H - 15, 14, 15); R(s, (150, 200, 230), dx, H - 14, 12, 14)
     R(s, (60, 70, 90), dx + 5, H - 14, 2, 14); R(s, (220, 220, 230), dx + 3, H - 8, 1, 3); R(s, (220, 220, 230), dx + 8, H - 8, 1, 3)
     # neon sign
-    name = "HARBOUR ARCADE"
     tw = text_width(name)
     sc = 2 if tw * 2 + 8 < W else 1
     sign = canvas(tw + 2, 7)
@@ -2404,18 +2404,463 @@ def _warehouse_front(bw, H, seed):
     return s
 
 
-def _shed_front(bw, H, seed):
-    """A long harbourside shed turned into restaurants: steel frame, big windows, warm light inside."""
+def _shed_front(bw, H, seed, sign=None):
+    """A long harbourside shed turned into restaurants: steel frame, big windows, warm light inside,
+    and (if it has one) its name in big lit letters over the windows."""
     W = bw * L
     s = canvas(W, H)
     steel, glass, warm = (70, 84, 96), (60, 78, 92), (250, 196, 110)
     R(s, steel, 0, 0, W, H)
     R(s, (150, 160, 168), 0, 0, W, 3)
-    R(s, OUTLINE, 2, 6, W - 4, H - 7); R(s, glass, 3, 7, W - 6, H - 8)
+    top = 6 if not sign else 15
+    R(s, OUTLINE, 2, top, W - 4, H - top - 1); R(s, glass, 3, top + 1, W - 6, H - top - 2)
     rng = random.Random(seed)
     for x in range(3, W - 3, 7):
-        R(s, steel, x, 7, 1, H - 8)
+        R(s, steel, x, top + 1, 1, H - top - 2)
         if rng.random() < 0.7:
             R(s, warm, x + 2, H - 10, 3, 3)                         # lamps / tables inside
-    R(s, steel, 3, 18, W - 6, 1)
+    R(s, steel, 3, min(H - 6, top + 12), W - 6, 1)
+    if sign:                                                        # the way in, in the middle
+        dx = (bw // 2) * L + 2
+        R(s, OUTLINE, dx - 1, H - 15, 14, 15); R(s, (250, 210, 140), dx, H - 14, 12, 14)
+        R(s, (90, 70, 50), dx + 5, H - 14, 2, 14); R(s, (60, 50, 40), dx + 3, H - 8, 1, 3); R(s, (60, 50, 40), dx + 8, H - 8, 1, 3)
+        R(s, (36, 30, 26), 2, 4, W - 4, 10)                         # the sign board
+        tw = text_width(sign)
+        sc = 2 if tw * 2 + 8 < W else 1
+        img = canvas(tw + 2, 7)
+        draw_text(img, sign, 0, 0, (255, 206, 90))
+        img = pygame.transform.scale(img, (img.get_width() * sc, img.get_height() * sc))
+        s.blit(img, ((W - img.get_width()) // 2, 9 - img.get_height() // 2))
+        for x in range(4, W - 4, 5):                                # bulbs round the board
+            P(s, (255, 236, 160), x, 4); P(s, (255, 236, 160), x, 13)
     return s
+
+
+STALL_AWNINGS = [(200, 52, 52), (46, 130, 80), (50, 96, 180), (226, 170, 40), (130, 70, 160), (220, 110, 40)]
+STALL_GOODS = ["fruit", "bread", "flowers", "jars", "books", "hats", "cheese", "veg"]
+
+
+def market_stall_layers(v=0):
+    """The stall in two layers: (awning, poles and back) and (the table with its goods) - so the stallholder can
+    stand between them."""
+    full = market_stall(v)
+    W, H = full.get_size()
+    cut = 17 * PX                                                   # the top of the table
+    back = full.copy()
+    back.fill((0, 0, 0, 0), (PX * 2, cut, W - PX * 4, H - cut))     # keep the poles, drop the table
+    front = pygame.Surface((W, H), pygame.SRCALPHA)
+    front.blit(full, (PX * 2, cut), (PX * 2, cut, W - PX * 4, H - cut))
+    return back, front
+
+
+def market_stall(v=0):
+    """A market stall, two tiles wide: striped awning on poles, a table with a cloth and the goods out on it."""
+    rng = random.Random(v * 31 + 7)
+    W, H = 30, 30
+    s = canvas(W, H)
+    aw = STALL_AWNINGS[v % len(STALL_AWNINGS)]
+    goods = STALL_GOODS[(v * 3 + 1) % len(STALL_GOODS)]
+    pole = (70, 56, 44)
+    R(s, (58, 48, 40), 2, 9, W - 4, 11)                               # the back of the stall, in the shade
+    R(s, shade((58, 48, 40), 1.2), 2, 9, W - 4, 1)
+    for x in (1, W - 3):
+        R(s, OUTLINE, x, 6, 2, H - 6); R(s, pole, x, 7, 1, H - 8)  # poles
+    # awning: stripes, with a scalloped edge
+    R(s, OUTLINE, 0, 1, W, 9)
+    for x in range(1, W - 1):
+        c = aw if (x // 4) % 2 == 0 else (244, 240, 230)
+        R(s, c, x, 2, 1, 6)
+        R(s, shade(c, 1.12), x, 2, 1, 1)
+        if x % 4 in (1, 2):
+            P(s, c, x, 8); P(s, OUTLINE, x, 9)
+        else:
+            P(s, OUTLINE, x, 8)
+    R(s, OUTLINE, 1, 0, W - 2, 1)
+    # the table, with a cloth hanging down the front
+    cloth = shade(aw, 0.7) if goods != "flowers" else (230, 226, 210)
+    R(s, OUTLINE, 2, 18, W - 4, 11)
+    R(s, cloth, 3, 19, W - 6, 9)
+    R(s, shade(cloth, 1.15), 3, 19, W - 6, 1)
+    for x in range(5, W - 5, 4):
+        P(s, shade(cloth, 0.85), x, 24)
+    # what's on the table
+    cols = {"fruit": [(220, 40, 40), (250, 160, 30), (120, 190, 50), (240, 220, 60)],
+            "bread": [(196, 140, 70), (220, 170, 100), (170, 110, 50)],
+            "flowers": [(240, 80, 140), (250, 220, 70), (160, 90, 220), (250, 250, 250)],
+            "jars": [(200, 120, 40), (150, 40, 50), (230, 190, 60)],
+            "books": [(60, 90, 160), (160, 50, 50), (60, 130, 80), (220, 200, 150)],
+            "hats": [(70, 70, 80), (180, 150, 100), (150, 60, 60)],
+            "cheese": [(246, 214, 90), (250, 236, 170), (230, 180, 60)],
+            "veg": [(240, 130, 40), (90, 160, 60), (150, 60, 120), (230, 230, 200)]}[goods]
+    for x in range(4, W - 5, 3):
+        c = rng.choice(cols)
+        h = 2 if goods in ("fruit", "veg", "cheese") else 3
+        R(s, OUTLINE, x, 17 - h, 3, h + 1); R(s, c, x, 17 - h + 1, 2, h)
+        P(s, shade(c, 1.3), x, 17 - h + 1)
+        if goods == "flowers":
+            P(s, (60, 140, 60), x + 1, 17)
+    R(s, (120, 96, 70), 3, 17, W - 6, 1)                                # table top edge
+    return up(s)
+
+
+# ============================================================== the harbourside market (back view) and the plaza
+def market_stall_back(v=0):
+    """A market stall seen from behind (it faces up the screen, across the aisle): the back of the awning
+    sloping down to us, the back cloth, the poles and the crates the stallholder keeps their stock in."""
+    rng = random.Random(v * 17 + 3)
+    W, H = 30, 24
+    s = canvas(W, H)
+    aw = STALL_AWNINGS[v % len(STALL_AWNINGS)]
+    pole = (70, 56, 44)
+    for x in (1, W - 3):
+        R(s, OUTLINE, x, 4, 2, H - 4); R(s, pole, x, 5, 1, H - 6)
+    # the awning from behind: stripes running away from us, shading towards the near edge
+    R(s, OUTLINE, 0, 0, W, 10)
+    for x in range(1, W - 1):
+        c = aw if (x // 4) % 2 == 0 else (244, 240, 230)
+        for y in range(1, 9):
+            P(s, shade(c, 1.06 - y * 0.03), x, y)
+    R(s, OUTLINE, 0, 9, W, 1)
+    # the back cloth hanging down to the ground
+    back = shade(aw, 0.55)
+    R(s, OUTLINE, 2, 10, W - 4, H - 11)
+    R(s, back, 3, 10, W - 6, H - 12)
+    for x in range(5, W - 5, 5):
+        R(s, shade(back, 0.85), x, 11, 1, H - 13)
+    # crates of stock on the ground behind
+    for x in (4, 13, 21):
+        c = rng.choice([(150, 110, 70), (120, 90, 60), (160, 130, 90)])
+        R(s, OUTLINE, x, H - 7, 7, 6); R(s, c, x + 1, H - 6, 5, 4); R(s, shade(c, 0.8), x + 1, H - 4, 5, 1)
+        R(s, rng.choice([(220, 60, 50), (240, 170, 40), (110, 180, 60)]), x + 1, H - 6, 5, 1)
+    return up(s)
+
+
+def setts_tile(v=0):
+    """Granite setts laid in fans: the decorative ring round the plaza."""
+    rng = random.Random(900 + v)
+    s = canvas(L, L)
+    base = (128, 132, 140)
+    R(s, shade(base, 0.7), 0, 0, L, L)
+    for row in range(4):
+        off = (row % 2) * 2
+        for col in range(-1, 5):
+            x, y = col * 4 + off, row * 4
+            c = shade(base, rng.uniform(0.88, 1.12))
+            R(s, c, x, y, 3, 3)
+            P(s, shade(c, 1.15), x, y)
+    return up(s).convert()
+
+
+def compass_rose(r=3):
+    """The plaza's centrepiece set into the paving: a brass-edged compass rose (r = radius in tiles)."""
+    n = r * 2 * L
+    s = canvas(n, n)
+    c = n / 2 - 0.5
+    rr = n / 2 - 1
+    for y in range(n):
+        for x in range(n):
+            d = math.hypot(x - c, y - c)
+            if d <= rr:
+                col = (226, 220, 204) if d < rr - 3 else ((196, 160, 70) if d > rr - 1.5 else (60, 66, 80))
+                if rr - 9 < d < rr - 7:
+                    col = (196, 160, 70)
+                s.set_at((x, y), col)
+    # the points of the star
+    def tri(a, length, width, col):
+        ax, ay = math.cos(a), math.sin(a)
+        px_, py_ = -ay, ax
+        pts = [(c + ax * length, c + ay * length), (c + px_ * width, c + py_ * width), (c - px_ * width, c - py_ * width)]
+        pygame.draw.polygon(s, col, pts)
+        pygame.draw.polygon(s, shade(col, 0.7), [pts[0], (c, c), pts[1]])
+    for k in range(8):
+        a = k * math.pi / 4 + math.pi / 8
+        tri(a, rr - 10, 3, (90, 100, 120))
+    for k in range(4):
+        a = k * math.pi / 2 - math.pi / 2
+        tri(a, rr - 4, 5, (190, 70, 60) if k == 0 else (60, 70, 90))
+    circle(s, (196, 160, 70), int(c), int(c), 3); circle(s, (240, 220, 150), int(c), int(c), 1)
+    # N at the top
+    draw_text(s, "N", int(c) - 2, 2, (190, 70, 60))
+    return up(s).convert_alpha()
+
+
+# ============================================================== inside Za Za Bazaar
+ZAZA_STATIONS = [("DESSERTS", (220, 90, 150)), ("SALADS", (110, 180, 70)), ("FAR EAST", (220, 60, 50)),
+                 ("TEX MEX", (240, 150, 40)), ("EUROPEAN", (70, 130, 210)), ("INDIAN", (230, 180, 40))]
+_STATION_FOOD = {
+    "DESSERTS": [(250, 240, 230), (120, 70, 40), (240, 120, 160), (250, 220, 120)],
+    "SALADS": [(110, 180, 60), (220, 60, 50), (240, 230, 200), (250, 200, 60)],
+    "FAR EAST": [(240, 230, 210), (200, 90, 40), (90, 150, 60), (250, 250, 250)],
+    "TEX MEX": [(200, 70, 40), (240, 200, 90), (90, 150, 60), (150, 90, 50)],
+    "EUROPEAN": [(240, 200, 120), (200, 60, 40), (250, 240, 220), (120, 160, 70)],
+    "INDIAN": [(230, 150, 40), (200, 80, 30), (250, 240, 220), (150, 90, 40)],
+}
+
+
+def zaza_station(name, colour):
+    """One of the open-kitchen food stations, four tiles wide: a sign hanging high on rods (white letters on
+    black, as on the map they give you at the door), heat lamps on long cords, then the steel serving counter
+    with the hot trays under a sneeze guard and a coloured stripe along the front. The chef stands in the gap
+    between the sign and the counter."""
+    W, H = 4 * L, 58
+    s = canvas(W, H)
+    steel = (176, 182, 190)
+    R(s, (60, 60, 66), 10, 0, 1, 3); R(s, (60, 60, 66), W - 11, 0, 1, 3)
+    R(s, OUTLINE, 4, 2, W - 8, 11); R(s, (24, 24, 28), 5, 3, W - 10, 9)
+    tw = text_width(name)
+    draw_text(s, name, (W - tw) // 2, 4, (240, 240, 240))
+    R(s, colour, 5, 11, W - 10, 1)
+    for x in range(8, W - 8, 12):                                   # heat lamps on cords
+        R(s, (40, 40, 44), x + 2, 13, 1, 16)
+        R(s, OUTLINE, x, 29, 6, 3); R(s, (90, 90, 96), x + 1, 29, 4, 2); R(s, (255, 170, 80), x + 1, 31, 4, 1)
+    R(s, (200, 230, 240), 2, 37, W - 4, 1)                          # sneeze guard glass
+    R(s, (60, 66, 76), 2, 37, 1, 4); R(s, (60, 66, 76), W - 3, 37, 1, 4)
+    R(s, OUTLINE, 0, 40, W, H - 40)
+    R(s, steel, 1, 41, W - 2, 3)                                    # the top, where the trays sit
+    food = _STATION_FOOD.get(name, [(200, 150, 90)])
+    for i, x in enumerate(range(3, W - 8, 8)):
+        R(s, OUTLINE, x, 40, 7, 4); R(s, (200, 204, 210), x + 1, 41, 5, 2)
+        R(s, food[i % len(food)], x + 1, 41, 5, 1); P(s, shade(food[i % len(food)], 1.25), x + 2, 41)
+    R(s, shade(steel, 0.85), 1, 44, W - 2, H - 45)                  # the brushed-steel front
+    for x in range(3, W - 2, 6):
+        R(s, shade(steel, 0.78), x, 45, 1, H - 47)
+    R(s, colour, 1, 48, W - 2, 3); R(s, shade(colour, 1.2), 1, 48, W - 2, 1)
+    R(s, (60, 60, 66), 1, H - 2, W - 2, 1)
+    R(s, OUTLINE, W - 7, 36, 5, 5); R(s, (244, 244, 244), W - 6, 37, 3, 3); R(s, (210, 210, 216), W - 6, 39, 3, 1)   # plates
+    return up(s).convert_alpha()
+
+
+def zaza_bar(end=None, v=0):
+    """A tile of the long bar: copper top, dark panelled front lit along the bottom; end = 'l'/'r'."""
+    s = canvas(L, 22)
+    copper, wood = (190, 110, 60), (60, 40, 34)
+    R(s, OUTLINE, 0, 4, L, 18)
+    R(s, copper, 0, 5, L, 3); R(s, shade(copper, 1.25), 0, 5, L, 1)
+    R(s, wood, 0, 8, L, 13)
+    R(s, shade(wood, 0.8), 0, 8, L, 1)
+    for x in (3, 11):
+        R(s, shade(wood, 1.2), x, 10, 3, 8); R(s, shade(wood, 0.8), x, 17, 3, 1)
+    R(s, (255, 190, 110), 0, 19, L, 1)                              # the strip light under the lip
+    if v % 3 == 0:                                                  # beer taps / glasses on the top
+        R(s, (210, 210, 220), 6, 0, 1, 5); R(s, (40, 40, 44), 5, 0, 3, 2)
+        R(s, (230, 160, 40), 11, 2, 2, 3)
+    else:
+        R(s, (220, 236, 240), 4, 2, 2, 3); R(s, (150, 40, 60), 10, 2, 2, 3)
+    if end == "l": R(s, OUTLINE, 0, 4, 1, 18)
+    if end == "r": R(s, OUTLINE, L - 1, 4, 1, 18)
+    return up(s).convert_alpha()
+
+
+def zaza_back_bar(v=0):
+    """The shelves behind the bar, against the wall: rows of lit bottles from 'five continents'."""
+    rng = random.Random(v * 11 + 5)
+    s = canvas(L, 21)
+    R(s, OUTLINE, 0, 0, L, 21); R(s, (40, 30, 30), 1, 1, L - 2, 19)
+    for y in (9, 18):
+        R(s, (150, 100, 60), 1, y, L - 2, 1)
+        R(s, (255, 200, 120), 1, y + 1, L - 2, 1) if y == 18 else None
+        x = 2
+        while x < L - 3:
+            c = rng.choice([(60, 140, 70), (150, 60, 40), (220, 200, 120), (90, 60, 140), (230, 230, 230), (180, 120, 40)])
+            h = rng.choice([5, 6, 7])
+            R(s, c, x, y - h, 2, h); P(s, shade(c, 1.4), x, y - h + 1); P(s, (40, 40, 40), x, y - h - 1)
+            x += 3
+    return up(s).convert_alpha()
+
+
+def zaza_booth_back(v=0):
+    """The back half of a booth: the tall buttoned backrest and the seat (drawn behind whoever's sitting in it)."""
+    W = 2 * L
+    s = canvas(W, 16)
+    leather = [(150, 40, 44), (120, 70, 40), (60, 90, 80)][v % 3]
+    R(s, OUTLINE, 0, 0, W, 16)
+    R(s, leather, 1, 1, W - 2, 14)
+    for y in (4, 9):
+        for x in range(3 + (y % 2) * 2, W - 2, 5):
+            P(s, shade(leather, 0.7), x, y)
+    R(s, shade(leather, 1.25), 1, 1, W - 2, 1)
+    R(s, shade(leather, 0.8), 1, 12, W - 2, 3)
+    return up(s).convert_alpha()
+
+
+def zaza_booth_front(v=0):
+    """The front half of a booth: the table laid for dinner and the low near bench."""
+    rng = random.Random(v * 7 + 1)
+    W, H = 2 * L, 30
+    s = canvas(W, H)
+    leather = [(150, 40, 44), (120, 70, 40), (60, 90, 80)][v % 3]
+    R(s, OUTLINE, 4, 13, W - 8, 8); R(s, (130, 90, 60), 5, 14, W - 10, 6); R(s, (160, 116, 80), 5, 14, W - 10, 1)
+    for x in range(8, W - 10, 9):
+        circle(s, (240, 240, 240), x + 2, 17, 2)
+        P(s, rng.choice([(200, 80, 40), (110, 170, 60), (230, 180, 60), (200, 60, 50)]), x + 2, 17)
+    R(s, (230, 236, 240), W // 2 - 1, 14, 2, 3)
+    R(s, OUTLINE, 1, 21, W - 2, 8); R(s, leather, 2, 22, W - 4, 3); R(s, shade(leather, 0.7), 2, 25, W - 4, 3)
+    return up(s).convert_alpha()
+
+
+def zaza_booth(v=0):
+    """A booth against the wall, two tiles wide: tall buttoned leather back, a table laid for dinner, the near
+    bench low so you can see over it."""
+    rng = random.Random(v * 7 + 1)
+    W, H = 2 * L, 30
+    s = canvas(W, H)
+    leather = [(150, 40, 44), (120, 70, 40), (60, 90, 80)][v % 3]
+    R(s, OUTLINE, 0, 0, W, 16)
+    R(s, leather, 1, 1, W - 2, 14)
+    for y in (4, 9):
+        for x in range(3 + (y % 2) * 2, W - 2, 5):
+            P(s, shade(leather, 0.7), x, y)
+    R(s, shade(leather, 1.25), 1, 1, W - 2, 1)
+    R(s, shade(leather, 0.8), 1, 12, W - 2, 3)                       # the seat
+    # table
+    R(s, OUTLINE, 4, 13, W - 8, 8); R(s, (130, 90, 60), 5, 14, W - 10, 6); R(s, (160, 116, 80), 5, 14, W - 10, 1)
+    for x in range(8, W - 10, 9):
+        circle(s, (240, 240, 240), x + 2, 17, 2)
+        P(s, rng.choice([(200, 80, 40), (110, 170, 60), (230, 180, 60), (200, 60, 50)]), x + 2, 17)
+    R(s, (230, 236, 240), W // 2 - 1, 14, 2, 3)                     # a glass
+    # the near bench
+    R(s, OUTLINE, 1, 21, W - 2, 8); R(s, leather, 2, 22, W - 4, 3); R(s, shade(leather, 0.7), 2, 25, W - 4, 3)
+    return up(s).convert_alpha()
+
+
+def zaza_chairs_back(v=0):
+    """The two chairs on the far side of a table (drawn behind the people sitting on them)."""
+    W = 26
+    s = canvas(W, 10)
+    chair = [(60, 60, 66), (150, 60, 40), (40, 90, 110)][v % 3]
+    for x in (4, 15):
+        R(s, OUTLINE, x, 0, 7, 10); R(s, chair, x + 1, 1, 5, 8); R(s, shade(chair, 1.25), x + 1, 1, 5, 1)
+    return up(s).convert_alpha()
+
+
+def zaza_table(v=0, back_chairs=True):
+    """A table for four: two chairs behind it (we see their backs over the top), two in front, plates out."""
+    rng = random.Random(v * 13 + 2)
+    W, H = 26, 24
+    s = canvas(W, H)
+    chair = [(60, 60, 66), (150, 60, 40), (40, 90, 110)][v % 3]
+    if back_chairs:
+        for x in (4, 15):
+            R(s, OUTLINE, x, 0, 7, 8); R(s, chair, x + 1, 1, 5, 6); R(s, shade(chair, 1.25), x + 1, 1, 5, 1)
+    R(s, OUTLINE, 1, 6, W - 2, 10); R(s, (176, 136, 92), 2, 7, W - 4, 7); R(s, (200, 160, 114), 2, 7, W - 4, 1)
+    R(s, (120, 86, 56), 2, 13, W - 4, 2)
+    for x in (6, 17):
+        circle(s, (244, 244, 244), x + 1, 10, 2)
+        if rng.random() < 0.8:
+            P(s, rng.choice([(200, 80, 40), (110, 170, 60), (230, 180, 60), (90, 60, 40)]), x + 1, 10)
+    R(s, (220, 230, 236), 12, 8, 2, 3)
+    for x in (4, 15):                                                # front chairs
+        R(s, OUTLINE, x, 15, 7, 8); R(s, shade(chair, 0.8), x + 1, 16, 5, 3); R(s, chair, x + 1, 19, 5, 3)
+    return up(s).convert_alpha()
+
+
+def zaza_pillar(v=0):
+    """A concrete pillar with a band of street art and fairy lights wound round it."""
+    rng = random.Random(v * 3 + 9)
+    W, H = 10, 52
+    s = canvas(W, H)
+    con = (150, 148, 144)
+    R(s, OUTLINE, 0, 0, W, H); R(s, con, 1, 1, W - 2, H - 2)
+    R(s, shade(con, 1.12), 1, 1, 2, H - 2); R(s, shade(con, 0.82), W - 3, 1, 2, H - 2)
+    speckle(s, rng, [shade(con, 0.9), shade(con, 1.08)], 0.12, (1, 1, W - 2, H - 2))
+    for y in range(26, 40):                                          # spray paint
+        for x in range(1, W - 1):
+            if rng.random() < 0.55:
+                P(s, rng.choice([(240, 80, 150), (60, 200, 230), (250, 220, 60), (120, 230, 120)]), x, y)
+    for y in range(4, H - 6, 5):                                     # fairy lights spiralling down
+        P(s, (255, 236, 160), 2 + (y // 5) % (W - 4), y)
+    return up(s).convert_alpha()
+
+
+def string_lights(width_px, sag=10, seed=0):
+    """A string of warm bulbs hanging between two pillars (width in screen px)."""
+    w = max(4, width_px // PX)
+    h = sag + 4
+    s = canvas(w, h)
+    pts = []
+    for x in range(w):
+        t = x / (w - 1)
+        y = int(1 + sag * 4 * t * (1 - t))
+        pts.append((x, y))
+        P(s, (40, 36, 34), x, y)
+    for i, (x, y) in enumerate(pts):
+        if i % 5 == 2:
+            P(s, (255, 232, 150), x, y + 1); P(s, (255, 250, 210), x, y + 2)
+    return up(s).convert_alpha()
+
+
+def zaza_drinks():
+    """The drinks station: bottomless soft drinks, a steel unit with the dispensers and stacks of glasses."""
+    W, H = 2 * L, 30
+    s = canvas(W, H)
+    steel = (176, 182, 190)
+    R(s, OUTLINE, 0, 0, W, H); R(s, (40, 44, 52), 1, 1, W - 2, 14)
+    cols = [(200, 30, 40), (40, 40, 44), (250, 200, 40), (60, 170, 70), (240, 120, 30), (60, 120, 200)]
+    for i, x in enumerate(range(3, W - 4, 5)):
+        R(s, cols[i % len(cols)], x, 3, 4, 5); R(s, (230, 230, 230), x + 1, 8, 2, 4)   # labels, nozzles
+    R(s, OUTLINE, 0, 15, W, 1)
+    R(s, steel, 1, 16, W - 2, 3)
+    for x in range(3, W - 3, 4):
+        R(s, (220, 236, 240), x, 13, 2, 3)                           # glasses
+    R(s, shade(steel, 0.8), 1, 19, W - 2, H - 20)
+    R(s, (30, 30, 34), 4, 22, W - 8, 4)
+    draw_text(s, "DRINKS", (W - text_width("DRINKS")) // 2, 22, (240, 240, 240))
+    return up(s).convert_alpha()
+
+
+def zaza_wc_door(accessible=False):
+    """A toilet door on the back wall, with its sign."""
+    s = canvas(L, 30)
+    R(s, OUTLINE, 2, 4, 12, 26); R(s, (70, 76, 86), 3, 5, 10, 25); R(s, shade((70, 76, 86), 1.2), 3, 5, 10, 1)
+    R(s, (200, 200, 210), 11, 18, 1, 3)
+    R(s, OUTLINE, 3, 0, 10, 6); R(s, (240, 240, 240), 4, 1, 8, 4)
+    if accessible:
+        circle(s, (40, 90, 200), 8, 3, 1); P(s, (40, 90, 200), 6, 2)
+    else:
+        P(s, (40, 40, 44), 6, 1); R(s, (40, 40, 44), 5, 2, 3, 2)     # the little people
+        P(s, (40, 40, 44), 10, 1); R(s, (40, 40, 44), 9, 2, 3, 2)
+    return up(s).convert_alpha()
+
+
+def zaza_graffiti(v=0):
+    """A panel of street art for the rough-rendered walls (one tile wide, the height of the wall face)."""
+    rng = random.Random(v * 29 + 4)
+    s = canvas(L, 11)
+    cols = [(240, 80, 150), (60, 200, 230), (250, 220, 60), (120, 230, 120), (250, 120, 40), (160, 90, 230)]
+    a, b = rng.sample(cols, 2)
+    for x in range(L):
+        y = int(5 + 3 * math.sin(x / 2.2 + v))
+        for yy in range(max(0, y - 2), min(11, y + 2)):
+            P(s, a, x, yy)
+        if rng.random() < 0.3:
+            P(s, b, x, rng.randrange(1, 10))
+    for x in range(1, L - 2, 4):
+        P(s, (250, 250, 250), x + rng.randrange(0, 2), rng.randrange(2, 8))
+    return up(s).convert_alpha()
+
+
+def zaza_neon():
+    """The pink-and-gold ZA ZA sign for the wall above the bar."""
+    name = "ZA ZA BAZAAR"
+    tw = text_width(name)
+    s = canvas(tw + 10, 11)
+    R(s, (30, 20, 34), 0, 0, s.get_width(), 11)
+    draw_text(s, name, 5, 2, (255, 120, 200))
+    for x in range(1, s.get_width() - 1, 3):
+        P(s, (250, 210, 90), x, 0); P(s, (250, 210, 90), x, 10)
+    return up(s).convert_alpha()
+
+
+def concrete_floor(v=0):
+    """Polished concrete, with soft reflections of the lights."""
+    rng = random.Random(400 + v)
+    s = canvas(L, L)
+    base = (112, 110, 112)
+    R(s, base, 0, 0, L, L)
+    speckle(s, rng, [shade(base, 0.94), shade(base, 1.06), shade(base, 1.12)], 0.12)
+    if v % 3 == 0:
+        for k in range(3):
+            P(s, (150, 140, 130), rng.randrange(L), rng.randrange(L))
+    if v % 4 == 1:
+        R(s, shade(base, 0.9), 0, L - 1, L, 1)                       # a saw cut joint
+    return up(s).convert()

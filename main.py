@@ -63,6 +63,7 @@ try:                                   # the harbourside, off the end of College
 except ImportError:
     harbourside_map = None
 import arcade                          # the arcade machines and their games (arcade.py)
+import minimap                         # the mini-map in the bottom-left corner
 
 # ============================================================== settings
 SCREEN_W, SCREEN_H = 1280, 720
@@ -153,7 +154,7 @@ if harbourside_map is not None:
     PLACES["Harbourside"] = harbourside_map
 MAPS.append(("Queens Road", queens_road_map) if queens_road_map is not None else ("Queens Road (simple)", QUEENS_ROAD))
 
-OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234")
+OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx")
 
 # ============================================================== shop interiors
 # Each shop you can walk into gets one of these rooms. Characters:
@@ -164,9 +165,39 @@ OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1
 #            g plant   y rug   q bench
 #   arcade:  a carpet   1 MVB Kombat   2 Seagull Bird   3 Hoop Shot   4 Invaders   (machines: walk up, press E)
 SHOP_NAMES = {"cafe": "Café", "corner": "Corner Shop", "clothes": "Clothes Shop", "books": "Bookshop",
-              "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade"}
+              "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade",
+              "zaza": "Restaurant"}
+ZAZA_CHARS = "SxBKbhTPFWV"     # Za Za Bazaar: S station (4 wide, x = the rest), B bar, K back bar, b booth (2 wide, h = rest),
+                               # T table for four, P pillar, F drinks station (2 wide), W / V toilets; i = polished concrete
 ARCADE_MACHINES = {"1": "kombat", "2": "seagull", "3": "hoops", "4": "invaders"}
 INTERIORS = {
+    # Za Za Bazaar, laid out like the map they hand you at the door: the bar along the back wall, the six food
+    # stations in a row in front of it (desserts, salads, far east, tex mex, european, indian), the drinks station
+    # by the salads, toilets top right, the way in bottom left, and the dining hall with booths, tables for four and
+    # concrete pillars strung with lights.
+    "zaza": [
+        "####################################",
+        "#giiiiiiiiiiKKKKKKKKKKiiiiiiiiWWViig#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#iiiiiiiiiiBBBBBBBBBBBBiiiiiiiiiiiii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#iiSxxxiSxxxiSxxxiSxxxiSxxxiSxxxiiii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#bhiiiiiiFxiiiiiiiiiiiiiiiiiiiiiiibh#",
+        "#iiiiTiiiiiiiPiiiTiiiTiiiPiiiTiiiTii#",
+        "#bhiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiibh#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#bhiiTiiiTiiiiiiiTiiiTiiiiiiiTiiiTbh#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#bhiiiiiiiiiiPiiiiiiiiiiiPiiiiiiiibh#",
+        "#iiiiTiiiTiiiiiiiTiiiTiiiiiiiTiiiTii#",
+        "#iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii#",
+        "#giiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiig#",
+        "###E################################",
+    ],
     "arcade": [
         "##################",
         "#1a2a3a4aa1a2a3a4#",
@@ -1020,6 +1051,7 @@ class World:
         self.feature_lights = []                      # floodlights, the lit waterfall...
         self.exit_tile = None
         self.cabinets = []                            # arcade machines: (front area you stand in, machine)
+        self.zaza = dict(stations=[], bar=[], booths=[], tables=[], pillars=[], drinks=[], bulbs=[], neon=None)
         if not isinstance(map_def, str):
             for shop in getattr(map_def, "SHOPS", []):
                 self.doors[tuple(shop["door"])] = shop
@@ -1047,7 +1079,13 @@ class World:
         self.sprites: list[Sprite] = []
         self.solids: list[pygame.Rect] = []
         self.decals: list[tuple[pygame.Surface, tuple[int, int]]] = []   # rugs + shadows, baked into ground
+        for kind_, dcx, dcy, r in (getattr(map_def, "DECALS", []) if not isinstance(map_def, str) else []):
+            if kind_ == "compass":                        # set into the paving, under everything else
+                img = pa.compass_rose(r)
+                self.decals.insert(0, (img, (int(dcx * TILE - img.get_width() / 2), int(dcy * TILE - img.get_height() / 2))))
         self._build()
+        if self.interior is not None and self.interior["kind"] == "zaza":
+            self._zaza_finish()
 
         if not isinstance(map_def, str):
             for orn in getattr(map_def, "ORNAMENTS", []):
@@ -1149,7 +1187,7 @@ class World:
         self.chunk_cache: "OrderedDict[tuple[int, int], pygame.Surface]" = OrderedDict()
 
         # ---- life: NPCs, traffic, fountains
-        floor = set("cf_;wya")
+        floor = set("cf_;wyai")
         self.free_floor = [(x, y) for y in range(self.h) for x in range(self.w)
                            if self.grid[y][x] in floor and not any(r.colliderect(pygame.Rect(x * TILE + 8, y * TILE + 8, TILE - 16, TILE - 16))
                                                                     for r in self.solid_grid.get((x, y), ()))]
@@ -1203,6 +1241,7 @@ class World:
         # street pieces
         self.lamp = pa.lamp_post(self.lamp_style)
         self.path_tiles = [pa.paving_tile(i, base=(214, 206, 186)) for i in range(3)]
+        self.setts = [pa.setts_tile(i) for i in range(4)]
         self.mat = pa.door_mat()
         self.exit_mat = pa.exit_mat()
         self.stairs_tiles = {}
@@ -1211,7 +1250,7 @@ class World:
         self.floors = {"d": [pa.floor_tile("dance", i) for i in range(4)],
                        "c": [pa.floor_tile("checker", 0)], ";": [pa.floor_tile("rubber", i) for i in range(2)],
                        "f": [pa.floor_tile("shop", 0)], "w": [pa.floor_tile("carpet", i) for i in range(2)],
-                       "a": [pa.arcade_carpet(i) for i in range(4)]}
+                       "a": [pa.arcade_carpet(i) for i in range(4)], "i": [pa.concrete_floor(i) for i in range(6)]}
         self.void = pygame.Surface((TILE, TILE)).convert(); self.void.fill((0, 0, 0))
         self.car_cache = {}
         self.bin = pa.bin_()
@@ -1255,7 +1294,9 @@ class World:
                 cx, cy = x * TILE + TILE // 2, y * TILE + TILE // 2
                 tile_rect = pygame.Rect(x * TILE, y * TILE, TILE, TILE)
 
-                if ch == "~":
+                if ch in ZAZA_CHARS and self.interior is not None and self.interior["kind"] == "zaza":
+                    self._zaza_prop(ch, x, y, cx, cy, tile_rect)
+                elif ch == "~":
                     self.solids.append(tile_rect)
                 elif ch == "#":
                     self.solids.append(tile_rect)
@@ -1266,6 +1307,8 @@ class World:
                     if self.at(x - 1, y, ".") == "#": mask |= 8
                     seed = self.interior["seed"] if self.interior is not None else 0
                     colour = INTERIOR_WALLS[seed % len(INTERIOR_WALLS)]
+                    if self.interior is not None and self.interior["kind"] == "zaza":
+                        colour = (172, 164, 152)                       # rough-rendered walls
                     key = ("wall", mask, colour)
                     if key not in self.real_cache:
                         self.real_cache[key] = pa.interior_wall(mask, colour)
@@ -1366,6 +1409,23 @@ class World:
                     base = pygame.Rect(0, 0, 20, 10); base.midbottom = (cx, foot)
                     self.solids.append(base)
                     self._shadow(cx, foot - 3, 28, 10)
+                elif ch == "m":                                       # a market stall (two tiles wide, from here right)
+                    v = (x * 7 + y * 13) % 48
+                    back, img = self.real_cache.setdefault(("stall", v), pa.market_stall_layers(v))
+                    foot = tile_rect.bottom - 6
+                    left = tile_rect.left + 4
+                    self.sprites.append(Sprite(back, (left, foot - img.get_height()), foot - 60))   # behind the stallholder
+                    self.sprites.append(Sprite(img, (left, foot - img.get_height()), foot))
+                    self.solids.append(pygame.Rect(left + 4, foot - 40, img.get_width() - 8, 40))
+                    self._shadow(left + img.get_width() // 2, foot - 2, img.get_width() + 6, 18)
+                elif ch == "j":                                       # a market stall facing up the screen (seen from behind)
+                    v = (x * 7 + y * 13) % 48
+                    img = self.real_cache.setdefault(("stallb", v), pa.market_stall_back(v))
+                    foot = tile_rect.bottom - 6
+                    left = tile_rect.left + 4
+                    self.sprites.append(Sprite(img, (left, foot - img.get_height()), foot))
+                    self.solids.append(pygame.Rect(left + 4, foot - 52, img.get_width() - 8, 52))
+                    self._shadow(left + img.get_width() // 2, foot - 2, img.get_width() + 6, 18)
                 elif ch == "q":
                     foot = cy + 16
                     self.sprites.append(Sprite(self.bench, (cx - 30, foot - self.bench.get_height()), foot))
@@ -1421,6 +1481,103 @@ class World:
                     base = pygame.Rect(0, 0, img.get_width() - 16, 36); base.midbottom = (cx, foot - 2)
                     self.solids.append(base)
                     self._shadow(cx, foot - 8, img.get_width(), 22)
+
+    def _zaza_prop(self, ch, x, y, cx, cy, tile_rect):
+        """Za Za Bazaar's fittings (see INTERIORS["zaza"])."""
+        cache = self.real_cache
+        foot = tile_rect.bottom - 2
+        zz = self.zaza
+        if ch in "xh":                                   # the rest of a wide piece: its first tile draws it
+            return
+        if ch == "S":
+            k = sum(1 for xx in range(x) if self.grid[y][xx] == "S")
+            name, col = pa.ZAZA_STATIONS[k % len(pa.ZAZA_STATIONS)]
+            img = cache.setdefault(("zstation", name), pa.zaza_station(name, col))
+            self.sprites.append(Sprite(img, (x * TILE, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * TILE, foot - 30, 4 * TILE, 30))
+            zz["stations"].append((x, y, name, col))
+            return
+        if ch == "B":
+            end = "l" if self.at(x - 1, y, " ") != "B" else ("r" if self.at(x + 1, y, " ") != "B" else None)
+            img = cache.setdefault(("zbar", end, x % 3), pa.zaza_bar(end, x))
+            self.sprites.append(Sprite(img, (x * TILE, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * TILE, foot - 44, TILE, 44))
+            zz["bar"].append((x, y))
+            return
+        if ch == "K":
+            img = cache.setdefault(("zbackbar", x % 4), pa.zaza_back_bar(x))
+            self.sprites.append(Sprite(img, (x * TILE, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * TILE, y * TILE, TILE, TILE))
+            return
+        if ch == "b":
+            v = (x + y) % 3
+            back = cache.setdefault(("zboothb", v), pa.zaza_booth_back(v))
+            img = cache.setdefault(("zboothf", v), pa.zaza_booth_front(v))
+            self.sprites.append(Sprite(back, (x * TILE, foot - img.get_height()), foot - 80))   # behind the people in it
+            self.sprites.append(Sprite(img, (x * TILE, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * TILE + 4, foot - 64, 2 * TILE - 8, 64))
+            self._shadow(x * TILE + TILE, foot - 4, 2 * TILE, 16)
+            zz["booths"].append((x, y))
+            return
+        if ch == "T":
+            v = (x * 3 + y) % 3
+            img = cache.setdefault(("ztable", v), pa.zaza_table(v, back_chairs=False))
+            chairs = cache.setdefault(("zchairs", v), pa.zaza_chairs_back(v))
+            left = cx - img.get_width() // 2
+            self.sprites.append(Sprite(chairs, (left, foot - img.get_height()), foot - 80))      # behind the diners
+            self.sprites.append(Sprite(img, (left, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(cx - 48, foot - 70, 96, 64))
+            self._shadow(cx, foot - 6, img.get_width() + 8, 22)
+            zz["tables"].append((cx, foot))
+            return
+        if ch == "P":
+            img = cache.setdefault(("zpillar", (x + y) % 4), pa.zaza_pillar(x + y))
+            self.sprites.append(Sprite(img, (cx - img.get_width() // 2, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(cx - 20, foot - 26, 40, 26))
+            self._shadow(cx, foot - 4, 56, 14)
+            zz["pillars"].append((cx, foot))
+            return
+        if ch == "F":
+            img = cache.setdefault("zdrinks", pa.zaza_drinks())
+            self.sprites.append(Sprite(img, (x * TILE, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * TILE + 4, foot - 44, 2 * TILE - 8, 44))
+            zz["drinks"].append((x * TILE + TILE, foot))
+            return
+        if ch in "WV":                                   # toilet doors set into the back wall
+            img = cache.setdefault(("zwc", ch), pa.zaza_wc_door(ch == "V"))
+            ft = tile_rect.top + 24
+            self.sprites.append(Sprite(img, (x * TILE, ft - img.get_height()), ft))
+            self.solids.append(pygame.Rect(x * TILE, tile_rect.top, TILE, 30))
+            return
+
+    def _zaza_finish(self):
+        """After the room's built: string lights between the pillars, street art on the walls, the neon sign."""
+        zz = self.zaza
+        rows = {}
+        for cx, foot in zz["pillars"]:
+            rows.setdefault(foot, []).append(cx)
+        for foot, xs in rows.items():                     # pillars on the same row, and out to the side walls
+            xs = sorted(xs)
+            pts = [TILE + 8] + xs + [(self.w - 1) * TILE - 8]
+            for a, b in zip(pts, pts[1:]):
+                img = self.real_cache.setdefault(("zlights", b - a), pa.string_lights(b - a, sag=8 + (b - a) // 160))
+                top = foot - 196
+                self.sprites.append(Sprite(img, (a, top), foot + 1))
+                zz["bulbs"] += [(a + (b - a) * t, top + 28 + 20 * math.sin(math.pi * t)) for t in (0.25, 0.5, 0.75)]
+        bar_x = [x for x, y in zz["bar"]] or [self.w // 2]
+        back = [x for x in range(self.w) if self.grid[1][x] == "K"] or bar_x
+        neon = self.real_cache.setdefault("zneon", pa.zaza_neon())
+        mid = (min(back) + max(back) + 1) * TILE // 2
+        top = 2 * TILE + 6                                # hanging over the bar, in front of the shelves
+        rods = pygame.Surface((neon.get_width(), 10), pygame.SRCALPHA)
+        rods.fill((50, 46, 50, 255), (16, 0, 4, 10)); rods.fill((50, 46, 50, 255), (neon.get_width() - 20, 0, 4, 10))
+        self.sprites.append(Sprite(rods, (mid - neon.get_width() // 2, top - 10), 2 * TILE + 49))
+        self.sprites.append(Sprite(neon, (mid - neon.get_width() // 2, top), 2 * TILE + 50))
+        zz["neon"] = (mid, top + 20)
+        for x in range(1, self.w - 1):                    # street art on the walls between things
+            if self.grid[1][x] == "i" and (x * 7) % 3 != 1:
+                img = self.real_cache.setdefault(("zgraf", x % 6), pa.zaza_graffiti(x))
+                self.sprites.append(Sprite(img, (x * TILE, TILE - img.get_height()), TILE + 1))
 
     def _interior_prop(self, ch, x, y, cx, cy, tile_rect):
         seed = self.interior["seed"] if self.interior else 0
@@ -1683,6 +1840,18 @@ class World:
             out.append((4 * TILE, 2 * TILE + 40, 110, (120, 80, 255), 0.8))
             out.append((9 * TILE, 3 * TILE, 180, (255, 200, 140), 0.8))
             out.append((9 * TILE, 6.5 * TILE, 160, (255, 170, 120), 0.6))
+            return out
+        if self.interior is not None and self.interior["kind"] == "zaza":     # a night market indoors
+            zz = self.zaza
+            out = [(bx, by, 90, (255, 214, 150), 0.55) for bx, by in zz["bulbs"]]
+            for x, y, name, col in zz["stations"]:
+                out.append(((x + 2) * TILE, (y + 1) * TILE - 120, 170, (255, 170, 90), 0.75))
+            if zz["bar"]:
+                xs = [x for x, y in zz["bar"]]
+                for x in range(min(xs), max(xs) + 1, 3):
+                    out.append((x * TILE + TILE, zz["bar"][0][1] * TILE, 150, (255, 196, 130), 0.6))
+            if zz["neon"]:
+                out.append((zz["neon"][0], zz["neon"][1] + 40, 220, (255, 100, 200), 0.7))
             return out
         if self.interior is not None and self.interior["kind"] == "arcade":   # each machine lights up the carpet in front
             out = []
@@ -1986,7 +2155,8 @@ class World:
         if tex is None:
             size = TILE * CHUNK_TILES
             tex = pygame.Surface((size, size), pygame.SRCALPHA)
-            tiles = self.grass if kind == "grass" else (self.path_tiles if kind == "path" else self.paving)
+            tiles = self.grass if kind == "grass" else (self.path_tiles if kind == "path" else
+                                                        (self.setts if kind == "setts" else self.paving))
             for ty in range(CHUNK_TILES):
                 for tx in range(CHUNK_TILES):
                     tex.blit(tiles[(tx * 5 + ty * 3) % len(tiles)], (tx * TILE, ty * TILE))
@@ -1999,7 +2169,7 @@ class World:
         lo = TILE // px                                     # logical pixels per tile
         n = area.width // px
         ox, oy = area.x / px, area.y / px
-        edge_cols = {"grass": (150, 146, 132), "path": (164, 154, 124), "plaza": (150, 146, 136)}
+        edge_cols = {"grass": (150, 146, 132), "path": (164, 154, 124), "plaza": (150, 146, 136), "setts": (96, 100, 108)}
         for shp in self.shapes:
             kind = shp["kind"]
             for layer in ("edge", "fill"):
@@ -2149,8 +2319,8 @@ _NoKeys = _NoKeysT()
 # TEMPORARY (for testing): jump straight to the stairs instead of walking there. Delete when done.
 DEV_TELEPORTS = {
     pygame.K_F5: ("Frogmore Street", (9.6, 10.4), "left"),     # bottom of the Frogmore steps
-    pygame.K_F6: ("Park Street", (93.0, 20.6), "up"),         # top of the Park Street stairwell
-    pygame.K_F7: ("Harbourside", (44.5, 76.8), "up"),         # outside the arcade
+    pygame.K_F6: ("Park Street", (69.0, 20.6), "up"),         # top of the Park Street stairwell
+    pygame.K_F7: ("Harbourside", (29.5, 46.8), "up"),         # outside the arcade
 }
 
 
@@ -2197,6 +2367,7 @@ def main():
     pocket = inventory.Pocket(BASE_DIR / "saves")
     clock_ = daynight.GameClock(BASE_DIR / "saves")
     lighting = daynight.Lighting()
+    mini = minimap.MiniMap()
     watch_cache = {}
     flames = [daynight.flame(i) for i in range(4)]
     last_clock_save = 0.0
@@ -2453,6 +2624,8 @@ def main():
             ambient = (44, 32, 66)                           # it's dark in a club, whatever the time
         elif world.interior is not None and world.interior["kind"] == "arcade":
             ambient = (92, 80, 126)                          # lights down low, the machines glowing
+        elif world.interior is not None and world.interior["kind"] == "zaza":
+            ambient = (132, 112, 104)                        # dim, like a market at night, under the string lights
         elif world.interior is not None:                     # indoors the lights are on
             ambient = tuple(max(a, b) for a, b in zip(ambient, (236, 226, 206)))
         lighting.apply(screen, ambient, lit, ox, oy)
@@ -2488,6 +2661,7 @@ def main():
         if world.real is not None and world.real["attribution"] and world.interior is None:
             credit = hud(world.real["attribution"])
             screen.blit(credit, (w - credit.get_width() - 10, h - credit.get_height() - 8))
+        mini.draw(screen, world, player, place_name)
         if show_fps:
             screen.blit(hud(f"FPS {clock.get_fps():.0f}"), (12, 34))
         if talk is not None:                                  # dialogue box

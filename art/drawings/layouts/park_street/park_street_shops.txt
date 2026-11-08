@@ -1,55 +1,39 @@
 Every shop you can walk into on Park Street: name, kind, door tile (x, y), which side of the road.
 
   SLOW DRIP              cafe     door (35, 19)   north side
-  SOLE MATES             clothes  door (39, 19)   north side
-  FIKA                   cafe     door (42, 19)   north side
-  SECOND WIND            clothes  door (47, 19)   north side
-  OAT & ALMOND           cafe     door (52, 19)   north side
-  RETRO RAGS             clothes  door (56, 19)   north side
-  PARK STORES            corner   door (61, 19)   north side
-  MEZE                   kebab    door (64, 19)   north side
-  FLEX                   gym      door (67, 19)   north side
-  CHAPTER ONE            books    door (71, 19)   north side
-  NOODLE BAR             cafe     door (74, 19)   north side
-  DAILY NEEDS            corner   door (77, 19)   north side
-  TRIM                   barber   door (79, 19)   north side
-  SILK ROAD              clothes  door (83, 19)   north side
-  THE RAG TRADE          clothes  door (87, 19)   north side
-  WAFFLE HOUSE           cafe     door (108, 19)  north side
-  THE GRILL              kebab    door (112, 19)  north side
-  CORNER PLUS            corner   door (115, 19)  north side
-  BAGEL BOX              cafe     door (119, 19)  north side
-  DENIM DEN              clothes  door (122, 19)  north side
-  CUT LOOSE              clothes  door (133, 19)  north side
-  FALAFEL KING           kebab    door (137, 19)  north side
-  URBAN THREADS          clothes  door (142, 19)  north side
-  KNIT WIT               clothes  door (146, 19)  north side
-  LATE SHOP              corner   door (149, 19)  north side
-  WOOL & WILLOW          clothes  door (152, 19)  north side
-  BEAN THERE             cafe     door (156, 19)  north side
-  THE NEWS STAND         corner   door (159, 19)  north side
-  HILLTOP COFFEE         cafe     door (163, 19)  north side
-  DONER DELIGHT          kebab    door (1, 33)    south side
-  FRINGE                 barber   door (4, 33)    south side
-  CINNAMON               cafe     door (7, 33)    south side
-  THE TOAST RACK         cafe     door (11, 33)   south side
-  THE DAILY GRIND        cafe     door (14, 33)   south side
-  THREAD & CO            clothes  door (18, 33)   south side
-  HILLTOP MINI MART      corner   door (22, 33)   south side
-  FRESH & EASY           corner   door (26, 33)   south side
-  OPEN ALL HOURS         corner   door (29, 33)   south side
-  FOOTNOTE               books    door (32, 33)   south side
-  TEALEAF                cafe     door (36, 33)   south side
-  FOLD                   clothes  door (40, 33)   south side
-  BROWN BEAR CAFE        cafe     door (43, 33)   south side
-  TOP KNOT               barber   door (47, 33)   south side
-  BOUND                  books    door (49, 33)   south side
-  MANE STREET            barber   door (54, 33)   south side
-  THE PANTRY             corner   door (58, 33)   south side
-  THE FADE ROOM          barber   door (62, 33)   south side
-  QUICK STOP             corner   door (66, 33)   south side
-  MOKA                   cafe     door (69, 33)   south side
-  THE HAT BOX            clothes  door (74, 33)   south side
-  COAT RACK              clothes  door (78, 33)   south side
-  TACO LOCO              cafe     door (82, 33)   south side
-  SUGAR LOAF             cafe     door (86, 33)   south side
+  SOLE MATES             clothes  door (38, 19)   north side
+  FIKA                   cafe     door (41, 19)   north side
+  SECOND WIND            clothes  door (44, 19)   north side
+  OAT & ALMOND           cafe     door (50, 19)   north side
+  RETRO RAGS             clothes  door (54, 19)   north side
+  PARK STORES            corner   door (57, 19)   north side
+  MEZE                   kebab    door (62, 19)   north side
+  FLEX                   gym      door (65, 19)   north side
+  WAFFLE HOUSE           cafe     door (84, 19)   north side
+  BAGEL BOX              cafe     door (95, 19)   north side
+  DENIM DEN              clothes  door (98, 19)   north side
+  CUT LOOSE              clothes  door (109, 19)  north side
+  URBAN THREADS          clothes  door (118, 19)  north side
+  KNIT WIT               clothes  door (122, 19)  north side
+  WOOL & WILLOW          clothes  door (128, 19)  north side
+  BEAN THERE             cafe     door (132, 19)  north side
+  HILLTOP COFFEE         cafe     door (139, 19)  north side
+  CINNAMON               cafe     door (1, 33)    south side
+  THE TOAST RACK         cafe     door (4, 33)    south side
+  THE DAILY GRIND        cafe     door (7, 33)    south side
+  THREAD & CO            clothes  door (11, 33)   south side
+  FOOTNOTE               books    door (14, 33)   south side
+  TEALEAF                cafe     door (17, 33)   south side
+  FOLD                   clothes  door (20, 33)   south side
+  BROWN BEAR CAFE        cafe     door (23, 33)   south side
+  TOP KNOT               barber   door (27, 33)   south side
+  BOUND                  books    door (30, 33)   south side
+  MOKA                   cafe     door (36, 33)   south side
+  THE HAT BOX            clothes  door (39, 33)   south side
+  COAT RACK              clothes  door (42, 33)   south side
+  TACO LOCO              cafe     door (48, 33)   south side
+  SUGAR LOAF             cafe     door (51, 33)   south side
+  THE RAG TRADE          clothes  door (54, 33)   south side
+  SILK ROAD              clothes  door (57, 33)   south side
+  NOODLE BAR             cafe     door (60, 33)   south side
+  CHAPTER ONE            books    door (63, 33)   south side
