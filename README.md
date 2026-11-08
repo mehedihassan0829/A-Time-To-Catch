@@ -27,14 +27,12 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 |---|---|
 | WASD / arrows | move |
 | Shift | run |
-| E | talk / play an arcade machine |
+| E | talk, look at things, play an arcade machine |
 | Click / E / Space | next line in a cut scene, put the newspaper away |
 | I | pocket (inventory) |
 | N | notebook |
 | F | lighter |
 | T (hold) | make time pass faster |
-| Tab | switch character |
-| M | switch map |
 | F1 | show hitboxes |
 | F3 | show FPS |
 | F5 / F6 / F7 | *(testing)* jump to the Frogmore steps / Park Street stairwell / the arcade |
@@ -49,11 +47,12 @@ The compass at the top of the screen always points the way to walk to your next 
 
 1. **The crime scene at the harbourside.** You talk to the police officer and Daniel Shaw, and Daniel gives you his number. The officer then hands you John's audio recorder, which brings on the first **time echo**. Time echoes are flashbacks in black and white, set in the place itself: here John is standing by the water when a shadowy figure comes up behind him.
 2. **The Bristol Arcade.** A hint tells you to beat John's high score on Seagull Bird. Do that and Martin comes over to talk. He lets you into John's locker in the store room, where you find a token, an old photograph and notes that cite Professor Usher.
-3. **Professor Usher's office** (through the Wills Memorial Building's front door). Usher isn't in, and an echo shows John and Usher talking about the photograph.
+3. **Professor Usher's office.** The Wills Memorial Building's front door on Park Street opens into the entrance hall: the twin staircases, the porter's desk, the busts and display cases. Usher's office is the oak door on the left of the hall. Usher isn't in, and an echo shows John and Usher talking about the photograph.
 4. **The cafés.** You ask for Emily in one café after another. At the fourth, they tell you Emily Carter comes in at 6pm, so you sit and wait. She shows you the photograph, and an echo shows her and John looking at it.
 5. **The Gazette** (Daniel's newspaper office on Park Street). Daniel finds the 1999 front page: Jack Harper, 31, found dead in the river.
 6. **The arcade's store room.** The 1999 staff binder is missing from the shelf. The 1998 one has P. Usher on it.
-7. **Usher's office again.** It's been packed up. You find the missing 1999 record and the photograph of Jack and Usher, which brings on the last echo. Then Usher's computer shows the train times.
+7. **Usher's office again.** It's been packed up, and this time nobody tells you where to look: the compass stops pointing and you search the room yourself. Walk up to things (the desk, the bookcases, the boxes, the armchair, the computer) and press E. There are three clues to find: the missing 1999 record, the photograph of Jack and Usher (which brings on the last echo) and Usher's train ticket.
+   - **Usher's computer** is left on. Use it with the mouse: a web browser, his mail, his documents and the recycle bin. The ticket is somewhere in the browser's **history** (Ctrl+H, or the History button), among everything else he's looked at, and nothing on the screen calls it a ticket. You can type in the search box to filter the history. Time stands still while you're at the computer, so the train time on the ticket doesn't change while you look. Esc or "Step away from the computer" takes you back to the room.
 8. **Clifton Down station.** Catch the bus at the College Green stop on Park Street: wait at the shelter, and press E when the bus pulls in. It takes you to Clifton Down, and the film plays.
 
 Optional: buy the morning paper at Park Stores on the way to the crime scene.
@@ -105,7 +104,6 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `harbourside_map.py` | the harbourside, off the end of College Green |
 | `arcade.py` | the arcade machines and their games (Seagull Bird, Hoop Shot, Invaders), and running MVB Kombat inside a machine |
 | `mvb_kombat/` | the MVB Kombat game, its art and sound |
-| `queens_road_map.py` | an earlier Queens Road map |
 | `people.py` | NPCs: looks, jobs, routines, opening hours |
 | `story.py` | the story characters and what they say - edit this to write the plot |
 | `traffic.py` | cars, the bus and the traffic lights |
@@ -118,7 +116,8 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `music.py` | which music plays where, with fades between tracks |
 | `video.py` | plays the film at the end |
 | `echo.py` | the time echoes (black and white flashbacks) and the opening scene in the flat |
-| `documents.py` | the things you read: newspapers, staff records, photographs, the train times |
+| `documents.py` | the things you read: newspapers, staff records, photographs, the train ticket |
+| `computer.py` | Professor Usher's computer (browser history, mail, documents, recycle bin) |
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
 | `art/drawings/` | the same drawings as PNGs |
 

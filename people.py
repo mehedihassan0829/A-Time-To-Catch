@@ -1088,6 +1088,22 @@ def populate_interior(world, kind, seed, hour=12.0):
             npcs.append(n)
         for k, x in enumerate((8, 10)):
             npcs.append(NPC(pid(f"bar{k}"), x * TILE + 32, 4 * TILE + 52, "dancer", "stand", d="up", seed=seed + 480 + k))
+    if kind == "wills":                                                # the entrance hall: a porter, students, visitors
+        T = TILE
+        porter = NPC(pid("porter"), 15.9 * T, 10 * T + 6, "public", "stand", d="down", seed=seed + 3, name="Porter",
+                     lines=[["Hello. Lectures are upstairs - Law on the left, Earth Sciences straight through.",
+                             "Professor Usher? His office is just there, top left of the hall."]])
+        porter.look = dict(porter.look, jacket=(30, 34, 52), shirt=(236, 236, 240), pants=(30, 34, 52), glasses=True)
+        npcs.append(porter)
+        for k, (tx, ty, d, tool) in enumerate(((6.4, 8.9, "up", "phone"), (7.2, 8.9, "left", None),
+                                                (13.5, 9.2, "up", None), (17.2, 6.4, "left", "book"))):
+            n = NPC(pid(f"visitor{k}"), tx * T, ty * T, "public", "stand", d=d, tool=tool, seed=seed + 40 + k)
+            n.lines = [["It's even bigger inside, isn't it?"], ["I've got a lecture in five minutes..."],
+                       ["Which floor's Earth Sciences?"], ["Shh - I'm revising."]][k]
+            npcs.append(n)
+        w = NPC(pid("walker"), 9.6 * T, 6 * T, "public", "walk_y", d="down", seed=seed + 77)
+        w.y0, w.y1 = 3.4 * T, 11.5 * T
+        npcs.append(w)
     if kind == "arcade":                                               # people playing some of the machines
         k = 0                                                          # (only along the back wall on the right,
         for y in range(world.h):                                       #  so every game always has a free machine)

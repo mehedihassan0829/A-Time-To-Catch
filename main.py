@@ -9,8 +9,6 @@ Controls:
     E                  - talk / play an arcade machine
     I / N / F          - pocket / notebook / lighter
     T (hold)           - make time pass faster
-    Tab                - switch character
-    M                  - switch map (Park Street / Queens Road)
     F1                 - show / hide hitboxes (handy when editing the map)
     F3                 - show / hide FPS
     F5 / F6 / F7       - (testing) jump to the Frogmore steps / the Park Street stairwell / the arcade
@@ -63,10 +61,6 @@ import traffic                         # traffic lights, cars, the bus (traffic.
 import inventory                       # your pocket + notebook (inventory.py)
 import daynight                        # the clock, day/night lighting and your watch (daynight.py)
 
-try:                                   # real Queens Road layout (from OpenStreetMap)
-    import queens_road_map
-except ImportError:
-    queens_road_map = None
 try:                                   # Frogmore Street, down the steps under the Park Street bridge
     import frogmore_map
 except ImportError:
@@ -84,6 +78,7 @@ import music as music_                 # the music (art/music) and which track p
 import menu as menu_                   # the main menu and the pause menu (menu.py)
 import video                           # the film at the end (art/videos, video.py)
 import quest                           # objectives, the compass, cut scenes, the newspaper (quest.py)
+import computer                        # Professor Usher's computer - the ticket's in its history (computer.py)
 
 # ============================================================== settings
 SCREEN_W, SCREEN_H = 1280, 720
@@ -125,46 +120,8 @@ FRect = getattr(pygame, "FRect", pygame.Rect)   # FRect = float rect (pygame-ce)
 #           _  wood floor            ~  water (solid)          #  wall (solid)
 # Objects:  T  tree      L  lamp     P  player start      (the street maps add more - see park_street_map.py)
 
-QUEENS_ROAD = """
-............................................===-................................................
-...TTT......T....T...TT..........b.....Tb.T.===-..T.....T....T....T.............................
-.....................b..T...b..T.....b......===-...........T.T.T.....b....T.....WWWWWWWWW....b..
-..VVVVVVVVVVVVVVVV.........................-===-................................WWWWWWWWW.......
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
-..VVVVVVVVVVVVVVVV--HHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH--WWWWWWWWWHHHHHHH
---------------n----------------------n--------------------n---------------------------n---------
-----------------------------------------P-------------------------------------------------------
----L---T---L-------L---T---L-------L---T---L-------Lu--T---L-------L-------L-------L---T---L----
-========v=====v===============zz====v=============v=====v=============zz====v=======v======v====
-==============================zz======================================zz========================
-==============================zz======================================zz========================
-==============================zz======================================zz========================
-========================v=====zz========v=============v===============zz========v=======v=======
------------------------L--u------------L-----T-L-------L-----T-L-------------T-L-------L-----T-L
-----------q-------------------------------------------------------------------------------------
-----------------------------------------n-----------------------------------n-------------------
-----------------------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
------T---------T------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-----------F-----------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-----------------------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-----------------------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
------T---------T------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
---------q---q---------HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH-===-HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-----------------------.......................................-===-..............................
-----------------------,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-===-,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-......................,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-===-,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-..T.b....T.b.T...............................................-===-..............................
-........T...........b.T.T............T.........T..T.T..TT.T..-===-.T.T........T........TT.....T.
-.T....T.b.................T....b..T.....T.T.TTb..............-===-..............T..T.......T..b.
-.............................................................-===-..............................
-"""
 
-MAPS = []                                              # press M in game to switch
+MAPS = []                                              # where the game starts
 if park_street_map is not None:
     MAPS.append(("Park Street", park_street_map))
 PLACES = {name: m for name, m in MAPS}       # every place you can be, by name (stairs etc. link them up)
@@ -172,10 +129,9 @@ if frogmore_map is not None:
     PLACES["Frogmore Street"] = frogmore_map
 if harbourside_map is not None:
     PLACES["Harbourside"] = harbourside_map
-MAPS.append(("Queens Road", queens_road_map) if queens_road_map is not None else ("Queens Road (simple)", QUEENS_ROAD))
 
-OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx" "056789<>?[]{}e")
-STORY_PROPS = "056789<>?[]{}e"     # the story's rooms (see INTERIORS): 5 records shelf  6 lockers  7 boxes  8 desk (9 = its
+OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx" "056789<>?[]{}el")
+STORY_PROPS = "056789<>?[]{}el"   # (l = a desk with a computer on it, 9 = its right half)     # the story's rooms (see INTERIORS): 5 records shelf  6 lockers  7 boxes  8 desk (9 = its
                                   # right half)  0 bookcase  [ filing cabinet  { office chair  < sofa (> = right half)
                                   # ? side table with the phone  ] armchair  } floor lamp  e bunk bed (the hostel)
 RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "2001")]   # the arcade's staff records
@@ -190,17 +146,35 @@ RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "20
 #   arcade:  a carpet   1 MVB Kombat   2 Seagull Bird   3 Hoop Shot   4 Invaders   (machines: walk up, press E)
 SHOP_NAMES = {"cafe": "Café", "corner": "Corner Shop", "clothes": "Clothes Shop", "books": "Bookshop",
               "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade",
-              "zaza": "Restaurant", "usher": "Professor Usher's Office", "gazette": "Newspaper Office", "home": "Home",
+              "zaza": "Restaurant", "usher": "Professor Usher's Office", "gazette": "Newspaper Office", "home": "Home", "wills": "Entrance Hall",
               "hostel": "Hostel"}
 ZAZA_CHARS = "SxBKbhTPFWV"     # Za Za Bazaar: S station (4 wide, x = the rest), B bar, K back bar, b booth (2 wide, h = rest),
                                # T table for four, P pillar, F drinks station (2 wide), W / V toilets; i = polished concrete
 ARCADE_MACHINES = {"1": "kombat", "2": "seagull", "3": "hoops", "4": "invaders"}
 INTERIORS = {
+    # The Wills Memorial Building's entrance hall: the two great staircases, the arch through to the corridor, and
+    # Professor Usher's office through the door top left. (The furniture's placed in World._hall_finish.)
+    "wills": [
+        "####################",
+        "####################",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#__________________#",
+        "#########E##########",
+    ],
     # Professor Usher's office in the Wills Memorial Building: oak bookcases, filing cabinets, his desk, a rug
     "usher": [
         "############",
         "#0000[[0000#",
-        "#__________#",
+        "#______l9__#",
         "#___{______#",
         "#__89___y__#",
         "#__________#",
@@ -213,7 +187,7 @@ INTERIORS = {
     "usher_packed": [
         "############",
         "#0000[[0000#",
-        "#__7_______#",
+        "#__7___l9__#",
         "#___{___7__#",
         "#__89______#",
         "#_____7____#",
@@ -414,21 +388,12 @@ def _shade(c, k):
     return tuple(max(0, min(255, int(v * k))) for v in c)
 
 
-# The looks you can switch between with Tab.  hair=None means bald.
+# The detective's look.  hair=None means bald.
 # style: "short", "long" (hair to shoulders), "helmet", "cap", "bald", "robot"
 CHARACTER_LOOKS = {
-    # the detective: trench coat, brunette hair, a cigarette in his mouth all the time (Tab to try the others)
-    "Detective":   dict(shirt="#d8d4c8", skin="#f1c29a", hair="#5b3a24", pants="#34343c", style="short",
-                        coat="#b08a5a", cig=True),
-    "Jay":         dict(shirt="#2f95d0", skin="#c48647", hair="#333333", pants="#3b4250", style="short"),
-    "Sam":         dict(shirt="#cd8c4a", skin="#ffd0a3", hair="#80582e", pants="#4a3a2c", style="short"),
-    "Old Ted":     dict(shirt="#414141", skin="#ffd0a3", hair="#cccccc", pants="#2e2e2e", style="short"),
-    "Rosa":        dict(shirt="#27ae60", skin="#ffd0a3", hair="#c48647", pants="#1b7b43", style="long"),
-    "Cadet":       dict(shirt="#447746", skin="#c48647", hair="#39643b", pants="#305431", style="helmet", pack="#9f6d39"),
-    "Courier":     dict(shirt="#6376a3", skin="#987047", hair="#8c7a6c", pants="#475577", style="cap"),
-    "Suit":        dict(shirt="#414141", skin="#ffd0a3", hair=None, pants="#2e2e2e", style="bald", collar="#f2f2f2"),
-    "Robot":       dict(shirt="#b3d9db", skin="#9cc0c2", hair="#f77118", pants="#728c8e", style="robot"),
-    "Zombie":      dict(shirt="#c48647", skin="#5cbf7f", hair="#666666", pants="#9a6937", style="short"),
+    # the detective: a black trench coat (belted, collar up) over a white shirt and tie, brunette hair
+    "Detective":   dict(shirt="#e8e4da", skin="#f1c29a", hair="#5b3a24", pants="#2c2c32", style="short",
+                        coat="#2a2a30"),
 }
 
 CHAR_W, CHAR_H = 44, 64          # logical size of one frame (feet at the bottom)
@@ -1178,6 +1143,8 @@ class World:
         self._build()
         if self.interior is not None and self.interior["kind"] == "zaza":
             self._zaza_finish()
+        if self.interior is not None and self.interior["kind"] == "wills":
+            self._hall_finish()
         if not isinstance(map_def, str) and getattr(map_def, "CRIME_SCENE", None) and not past:
             self._crime_scene(map_def.CRIME_SCENE)
         if (self.interior or {}).get("variant") == "packed":          # papers all over the floor
@@ -1330,6 +1297,8 @@ class World:
         self.paving = [pa.paving_tile(i) for i in range(4)]
         self.concrete = [pa.paving_tile(i, base=(176, 180, 182)) for i in range(2)]
         self.wood = [pa.wood_floor_tile(i) for i in range(3)]
+        if (self.interior or {}).get("kind") == "wills":             # polished stone flags in the Wills hall
+            self.wood = [pa.hall_floor(i) for i in range(4)]
         self.road = [pa.road_tile(i) for i in range(6)]
         self.road_line_h = pa.road_tile(1, "h")
         self.road_line_v = pa.road_tile(1, "v")
@@ -1688,6 +1657,51 @@ class World:
         self.solids.append(pygame.Rect(sx * TILE - 30, sy * TILE - 12, 60, 12))
         self._shadow(sx * TILE, sy * TILE - 3, 70, 12)
 
+    WILLS_OFFICE_DOOR = (2, 1)          # Professor Usher's door, in the hall's back wall
+
+    def _hall_finish(self):
+        """The Wills Memorial Building's entrance hall (like the real one): the tall stone back wall with its windows
+        and shields, the arch to the corridor, the two great staircases, the rope barriers, busts, cases, the
+        porter's desk - and the door to Professor Usher's office."""
+        cache = self.real_cache
+        T = TILE
+        wall = cache.setdefault("wills_wall", pa.wills_back_wall(self.w, self.WILLS_OFFICE_DOOR[0], (8, 12)))
+        self.sprites.append(Sprite(wall, (0, 0), 2 * T + 2))           # over the plain wall pieces
+        ox, oy = self.WILLS_OFFICE_DOOR
+        self.doors[(ox, oy)] = dict(kind="usher", door=(ox, oy), side="south", label="Professor Usher's office")
+        self.decals.append((self.mat, (ox * T, (oy + 1) * T + 4)))
+        for x0, flip in ((3, False), (12, True)):                          # the staircases
+            img = cache.setdefault(("stairs", flip), pa.grand_stairs(flip))
+            self.sprites.append(Sprite(img, (x0 * T, 2 * T - 24), 7 * T - 4))
+            self.solids.append(pygame.Rect(x0 * T, 2 * T, 5 * T, 5 * T - 8))
+        for x0 in (3, 12):                                                 # ropes in front of them
+            img = cache.setdefault("rope", pa.rope_barrier(5))
+            self.sprites.append(Sprite(img, (x0 * T, 7 * T + 8), 7 * T + 60))
+            self.solids.append(pygame.Rect(x0 * T, 7 * T + 40, 5 * T, 18))
+        props = [("bust", pa.bust_on_plinth, 1.5, 4.0), ("bust", pa.bust_on_plinth, 18.5, 4.0),
+                 ("case", pa.display_case, 1.5, 8.0), ("case", pa.display_case, 1.5, 9.0),
+                 ("case", pa.display_case, 18.5, 8.0), ("case", pa.display_case, 18.5, 9.0),
+                 ("directory", pa.directory_sign, 11.6, 8.3), ("banner", pa.roll_banner, 8.4, 8.3),
+                 ("plant", pa.plant, 1.5, 12.0), ("plant", pa.plant, 18.5, 12.0)]
+        for key, fn, tx, ty in props:
+            img = cache.setdefault(("hall", key), fn())
+            cx, foot = tx * T, ty * T + T - 4
+            self.sprites.append(Sprite(img, (cx - img.get_width() // 2, foot - img.get_height()), foot))
+            r = pygame.Rect(0, 0, min(img.get_width() - 8, T), 22); r.midbottom = (cx, foot)
+            self.solids.append(r)
+            self._shadow(cx, foot - 4, img.get_width(), 12)
+        for x in (15, 16):                                                 # the porter's desk
+            left = x == 15
+            img = cache.setdefault(("counter", "X" if left else "Q", left, not left),
+                                   pa.counter("wood", till=False, end="l" if left else "r"))
+            foot = 10 * T + T - 2
+            self.sprites.append(Sprite(img, (x * T + T // 2 - img.get_width() // 2, foot - img.get_height()), foot))
+            self.solids.append(pygame.Rect(x * T, 10 * T + 8, T, T - 8))
+        for x in (4, 6):                                                   # benches by the door
+            self.sprites.append(Sprite(self.bench, (x * T + T // 2 - self.bench.get_width() // 2,
+                                                    11 * T + T - 4 - self.bench.get_height()), 11 * T + T - 4))
+            self.solids.append(pygame.Rect(x * T + 4, 11 * T + 30, T - 8, 26))
+
     def _zaza_finish(self):
         """After the room's built: string lights between the pillars, street art on the walls, the neon sign."""
         zz = self.zaza
@@ -1802,6 +1816,9 @@ class World:
         elif ch == "8":
             kind = "packed" if variant == "packed" else self.interior["kind"]
             img = cache.setdefault(("desk", kind, x + y), pa.desk(kind, x * 7 + y))
+            wide = True
+        elif ch == "l":
+            img = cache.setdefault("computer_desk", pa.computer_desk())
             wide = True
         elif ch == "0":
             img = cache.setdefault(("bookcase", x % 5, variant == "packed"), pa.bookcase(x * 5 + 1, variant == "packed"))
@@ -2749,18 +2766,8 @@ def run_game(screen, clock, music, menu):
                 if event.key == pygame.K_ESCAPE:
                     if talk is not None:
                         talk["npc"].talking = False; talk = None
-                elif event.key == pygame.K_TAB:
-                    player.next_character()
                 elif event.key == pygame.K_F1:
                     show_hitboxes = not show_hitboxes
-                elif event.key == pygame.K_m:
-                    map_index = (map_index + 1) % len(MAPS)
-                    outside.clear()
-                    named_worlds.clear()
-                    world = World(MAPS[map_index][1], sheet, hour=clock_.hour)
-                    place_name = MAPS[map_index][0]
-                    put_player(world.spawn)
-                    fade = 0.3
                 elif event.key == pygame.K_F3:
                     show_fps = not show_fps
                 elif event.key == pygame.K_F11 and TOGGLE_DISPLAY:
@@ -2791,6 +2798,18 @@ def run_game(screen, clock, music, menu):
         pocket.update(clock.get_time() / 1000)
         world.update(min(clock.get_time() / 1000, 0.05), pygame.Rect(player.hitbox()), clock_.hour, clock_.is_night())
         story.update(min(clock.get_time() / 1000, 0.05), world, place_name, player, PLACES)
+        if story.want_computer:                              # Usher's computer: time stands still while you use it
+            story.want_computer = False
+            found = computer.run(screen, clock, clock_.text())
+            if found == "quit":
+                running = False
+                continue
+            story.computer_closed(found)
+            pygame.event.clear()
+            clock.tick()
+            accumulator = 0.0
+            keys_now = pygame.key.get_pressed()
+            continue
         # ---- the music for wherever you are
         if story.cutscene is not None and (story.scene is not None or len(story.cutscene.lines) >= 5):
             music.want("detective")                            # the story's scenes and time echoes
@@ -2854,6 +2873,8 @@ def run_game(screen, clock, music, menu):
             place_name = _brand(near_shop.get("brand", "")) or SHOP_NAMES[near_shop["kind"]]
             if near_shop.get("brand"):
                 place_name += f" ({SHOP_NAMES[near_shop['kind']]})"
+            if near_shop.get("label"):
+                place_name = near_shop["label"][0].upper() + near_shop["label"][1:]
             put_player(world.spawn, "up")
             fade = 0.35
         elif world.interior is not None and world.exit_tile is not None:
@@ -2966,14 +2987,14 @@ def run_game(screen, clock, music, menu):
 
         # ---- HUD (not during a cut scene: the black bars and the dialogue have the screen)
         if story.cutscene is None:
-            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk  I pocket  N notebook  F lighter  T time  Tab character  M map"), (12, 10))
+            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk / look  I pocket  N notebook  F lighter  T time  Esc menu"), (12, 10))
         if story.cutscene is None:
             minute = int(clock_.hours * 60)
             face = watch_cache.get(minute)
             if face is None:
                 watch_cache.clear(); face = watch_cache[minute] = daynight.watch_face(clock_.hour)
             screen.blit(face, (w - face.get_width() - 12, 8))
-            wt = hud(f"Day {clock_.day}  {clock_.text()}" + ("  >>" if clock_.fast else ""))
+            wt = hud(clock_.text() + ("  >>" if clock_.fast else ""))
             screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
         machine_here = world.cabinet_near(player.pos) if world.interior is not None else None
         story_tip = None if (pocket.busy or talk is not None) else story.prompt(world, place_name, player)
@@ -2990,10 +3011,12 @@ def run_game(screen, clock, music, menu):
             if npc is not None and near_shop is None:
                 tip = hud(f"E: talk to {npc.name}")
                 screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 96))
-        if near_shop is not None and world.interior is None:
+        if near_shop is not None and (world.interior is None or near_shop.get("label")):
             arrow = {"south": "Up", "north": "Down", "west": "Right", "east": "Left"}[near_shop["side"]]
             where = (f"{_brand(near_shop['brand'])} ({SHOP_NAMES[near_shop['kind']]})" if near_shop.get("brand")
                      else f"the {SHOP_NAMES[near_shop['kind']]}")
+            if near_shop.get("label"):
+                where = near_shop["label"]
             tip = hud(f"{arrow}: walk into {where}") if not shop_closed else hud(
                 f"{where} is closed ({people.opening_text(near_shop['kind'])})")
             screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 60))

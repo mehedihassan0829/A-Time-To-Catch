@@ -3247,3 +3247,163 @@ def bunk_bed(seed=0):
         R(s, frame, 1, y + 8, L - 2, 1)
     R(s, frame, 4, 11, 1, 3); R(s, frame, 4, 12, 3, 1)                 # the ladder
     return up(s).convert_alpha()
+
+
+# ============================================================== the Wills Memorial Building's entrance hall
+WILLS_STONE, WILLS_STONE_D, WILLS_STONE_L = (214, 200, 168), (176, 160, 128), (232, 222, 196)
+
+
+def hall_floor(v=0):
+    """Polished stone flags, a soft shine on them."""
+    rng = random.Random(8100 + v)
+    s = canvas(L, L)
+    base = (200, 186, 156)
+    R(s, shade(base, rng.uniform(0.96, 1.04)), 0, 0, L, L)
+    R(s, shade(base, 0.82), 0, 15, L, 1); R(s, shade(base, 0.82), 15, 0, 1, L)
+    R(s, shade(base, 1.08), 0, 0, L, 1)
+    for _ in range(4):
+        P(s, shade(base, rng.uniform(0.9, 1.1)), rng.randrange(1, 15), rng.randrange(1, 15))
+    if v % 2 == 0:
+        R(s, shade(base, 1.12), 3 + v % 5, 4, 4, 1)                      # the shine from the lights
+    return up(s).convert()
+
+
+def wills_back_wall(tiles=20, door_x=2, arch=(8, 12)):
+    """The great back wall of the hall, two tiles tall: tall stone panelling, three gothic windows with the
+    city / university shields under them, the arch through to the corridor, and Professor Usher's office door."""
+    W, H = tiles * L, 2 * L
+    s = canvas(W, H)
+    R(s, WILLS_STONE, 0, 0, W, H)
+    for x in range(0, W, 4):                                              # tall stone panelling
+        R(s, WILLS_STONE_L, x, 0, 1, H); R(s, WILLS_STONE_D, x + 3, 0, 1, H)
+    for y in (9, 21):
+        R(s, WILLS_STONE_D, 0, y, W, 1); R(s, WILLS_STONE_L, 0, y + 1, W, 1)
+    R(s, WILLS_STONE_D, 0, H - 3, W, 3)                                   # skirting
+    ax0, ax1 = arch[0] * L, arch[1] * L
+    for i, cx in enumerate((ax0 - 30, (ax0 + ax1) // 2, ax1 + 30)):          # windows and shields
+        R(s, OUTLINE, cx - 7, 1, 14, 9); R(s, (60, 70, 96), cx - 6, 2, 12, 7)
+        for k in (cx - 2, cx + 2):
+            R(s, WILLS_STONE_D, k, 2, 1, 7)
+        R(s, (250, 230, 160), cx - 5, 3, 2, 2); R(s, (250, 230, 160), cx + 3, 3, 2, 2)   # lit inside
+        R(s, OUTLINE, cx - 3, 11, 6, 7)
+        colours = [(170, 40, 40), (240, 240, 236), (170, 40, 40)]
+        R(s, colours[i], cx - 2, 12, 4, 5); P(s, colours[i], cx - 1, 17); P(s, colours[i], cx, 17)
+        R(s, (220, 180, 60) if i != 1 else (180, 30, 30), cx - 1, 13, 2, 2)
+    # the arch through to the corridor (dark, a glass door at the end)
+    R(s, OUTLINE, ax0, 8, ax1 - ax0, H - 8)
+    R(s, (54, 50, 62), ax0 + 1, 9, ax1 - ax0 - 2, H - 9)
+    pygame.draw.polygon(s, WILLS_STONE, [(ax0, 8), (ax0 + (ax1 - ax0) // 2, 2), (ax1, 8)])
+    pygame.draw.lines(s, OUTLINE, False, [(ax0, 8), (ax0 + (ax1 - ax0) // 2, 2), (ax1 - 1, 8)])
+    gx = (ax0 + ax1) // 2
+    R(s, (150, 176, 196), gx - 6, 18, 12, H - 21); R(s, (210, 226, 236), gx - 6, 18, 12, 1)
+    R(s, OUTLINE, gx, 18, 1, H - 21)
+    R(s, (240, 230, 200), gx - 3, 14, 6, 2)                                # the light in the corridor
+    # Professor Usher's door: dark oak, a pointed top, a brass plate
+    dx = door_x * L
+    R(s, OUTLINE, dx + 2, 12, 12, H - 14)
+    R(s, (96, 60, 36), dx + 3, 13, 10, H - 15)
+    pygame.draw.polygon(s, OUTLINE, [(dx + 2, 12), (dx + 8, 8), (dx + 13, 12)])
+    pygame.draw.polygon(s, (96, 60, 36), [(dx + 4, 12), (dx + 8, 9), (dx + 11, 12)])
+    R(s, (70, 44, 26), dx + 8, 13, 1, H - 15)
+    R(s, (210, 176, 90), dx + 10, 21, 1, 2)                                # handle
+    R(s, OUTLINE, dx + 2, 4, 12, 4); R(s, (210, 176, 90), dx + 3, 5, 10, 2)   # name plate
+    return up(s).convert_alpha()
+
+
+def grand_stairs(flip=False):
+    """One of the two great staircases (5 tiles wide, 5 deep): stone steps rising to the back wall,
+    a stone balustrade on the inner side and big square newel posts at the bottom."""
+    W, H = 5 * L, 5 * L + 6
+    s = canvas(W, H)
+    for i in range(16):                                                   # the steps, darker as they go up
+        y = 6 + i * 5
+        k = 0.8 + i * 0.012
+        R(s, shade(WILLS_STONE_L, k + 0.18), 3, y, W - 6, 3)                # tread
+        R(s, shade(WILLS_STONE_D, k), 3, y + 3, W - 6, 2)                   # riser (the face of the next step)
+    R(s, OUTLINE, 0, 6, 4, H - 6); R(s, WILLS_STONE_L, 1, 6, 2, H - 6)      # balustrades either side
+    R(s, OUTLINE, W - 4, 6, 4, H - 6); R(s, WILLS_STONE_L, W - 3, 6, 2, H - 6)
+    for x in (0, W - 7):                                                  # newel posts at the bottom
+        R(s, OUTLINE, x, H - 18, 7, 18); R(s, WILLS_STONE, x + 1, H - 17, 5, 16)
+        R(s, WILLS_STONE_L, x + 1, H - 17, 5, 2); R(s, WILLS_STONE_D, x + 1, H - 4, 5, 3)
+    R(s, (90, 70, 60), W // 2 - 8, 8, 16, H - 26)
+    for i in range(16):
+        R(s, (70, 52, 46), W // 2 - 8, 10 + i * 5, 16, 1)
+    img = up(s).convert_alpha()
+    return pygame.transform.flip(img, True, False) if flip else img
+
+
+def rope_barrier(tiles=5):
+    """Black posts with a red rope between (keeps people off the stairs)."""
+    W = tiles * L
+    s = canvas(W, 14)
+    posts = list(range(1, W, (W - 3) // max(1, tiles - 1)))
+    for i, x in enumerate(posts):
+        R(s, OUTLINE, x, 2, 2, 12); R(s, (40, 40, 44), x - 1, 12, 4, 2)
+        R(s, (200, 200, 210), x, 2, 2, 1)
+        if i + 1 < len(posts):
+            nx = posts[i + 1]
+            for xx in range(x + 2, nx):
+                sag = int(2 * math.sin(math.pi * (xx - x) / max(1, nx - x)))
+                P(s, (190, 30, 40), xx, 4 + sag); P(s, (140, 20, 30), xx, 5 + sag)
+    return up(s).convert_alpha()
+
+
+def directory_sign():
+    """The tall black directory board: WILLS MEMORIAL BUILDING, floor by floor."""
+    s = canvas(10, 34)
+    R(s, OUTLINE, 1, 0, 8, 32); R(s, (34, 34, 40), 2, 1, 6, 30)
+    R(s, (230, 230, 230), 2, 2, 6, 1)
+    for y in range(5, 29, 4):
+        R(s, (210, 210, 214), 3, y, 4, 2)
+    R(s, (60, 60, 66), 0, 32, 10, 2)
+    return up(s).convert_alpha()
+
+
+def bust_on_plinth():
+    s = canvas(10, 26)
+    R(s, OUTLINE, 1, 10, 8, 16); R(s, (70, 64, 66), 2, 11, 6, 15); R(s, (100, 92, 94), 2, 11, 6, 1)   # marble plinth
+    ellipse_fill(s, OUTLINE, 5, 6, 3, 4); ellipse_fill(s, (60, 52, 44), 5, 6, 2, 3)                   # bronze head
+    R(s, OUTLINE, 3, 9, 4, 2); R(s, (60, 52, 44), 3, 9, 4, 1)
+    P(s, (110, 96, 80), 4, 5)
+    return up(s).convert_alpha()
+
+
+def display_case():
+    """A glass cabinet of old university things."""
+    s = canvas(L, 22)
+    R(s, OUTLINE, 0, 0, L, 22); R(s, (130, 92, 60), 1, 14, L - 2, 7)
+    R(s, (176, 206, 220), 1, 1, L - 2, 13); R(s, (220, 236, 244), 1, 1, L - 2, 1)
+    for x, c in ((3, (180, 150, 90)), (7, (120, 120, 130)), (11, (160, 60, 50))):
+        R(s, c, x, 8, 2, 5)
+    R(s, (100, 70, 44), 1, 18, L - 2, 1)
+    return up(s).convert_alpha()
+
+
+def roll_banner():
+    """A roll-up banner on its stand (Earth Sciences this way)."""
+    s = canvas(9, 28)
+    R(s, OUTLINE, 0, 0, 9, 26); R(s, (40, 80, 150), 1, 1, 7, 24)
+    R(s, (240, 240, 240), 2, 4, 5, 1); R(s, (240, 240, 240), 2, 6, 3, 1)
+    R(s, (200, 120, 60), 2, 10, 5, 6); R(s, (90, 140, 200), 2, 17, 5, 5)
+    R(s, (60, 60, 66), 0, 26, 9, 2)
+    return up(s).convert_alpha()
+
+
+def computer_desk(seed=0, on=True):
+    """A desk with a computer on it, the screen still on (two tiles wide)."""
+    W = 2 * L
+    s = canvas(W, 20)
+    wood, wood_d, wood_l = (122, 80, 50), (88, 56, 36), (150, 104, 68)
+    R(s, OUTLINE, 0, 6, W, 14)
+    R(s, wood_l, 1, 7, W - 2, 4); R(s, wood, 1, 11, W - 2, 8)
+    R(s, wood_d, W - 11, 12, 9, 7)
+    for y in (13, 16):
+        R(s, wood, W - 10, y, 7, 2); R(s, (220, 190, 120), W - 7, y + 1, 1, 1)
+    R(s, OUTLINE, 8, 0, 14, 9); R(s, (40, 44, 52), 9, 1, 12, 7)                # monitor
+    R(s, (120, 190, 230) if on else (30, 34, 40), 10, 2, 10, 5)
+    if on:
+        R(s, (230, 240, 250), 11, 3, 6, 1); R(s, (200, 220, 240), 11, 5, 4, 1)
+    R(s, (60, 64, 72), 14, 8, 2, 1)
+    R(s, OUTLINE, 9, 9, 10, 2); R(s, (200, 200, 206), 10, 9, 8, 1)              # keyboard
+    R(s, (240, 240, 236), 22, 7, 3, 3); R(s, (90, 60, 40), 22, 7, 3, 1)        # mug
+    return up(s).convert_alpha()

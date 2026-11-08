@@ -51,6 +51,7 @@ OBJECTIVES = [
     dict(id="daniel", label="Ask Daniel about 1999 at The Gazette"),
     dict(id="records", label="Find the 1999 staff record in the arcade's store room"),
     dict(id="usher2", label="Go back to Professor Usher's office"),
+    dict(id="search", label="Search Professor Usher's office"),
     dict(id="station", label="Catch the bus to Clifton Down (College Green stop) - stop Usher"),
 ]
 
@@ -238,16 +239,25 @@ RECORDS = [
 ]
 
 # ------------------------------------------------------------------ Usher's office, emptied: the truth
-USHER_GONE = [
+USHER_GONE = [   # walking in the last time - then it's up to you to search the place
     ("", "The office is empty. Books gone from the shelves, drawers pulled out, boxes half packed. "
          "It looks like he was packing to leave."),
+    ("Detective", "Where are you going, Professor?"),
+    ("", "Search the office. Walk up to things and press E to look at them."),
+]
+
+# things to look at in the packed-up office: E at each. (The three that matter: the desk, its drawers, the computer.)
+SEARCH_RECORD = [
     ("", "On the desk, under a pile of papers: a binder marked 1999.", dict(view="record1999", give="record1999")),
     ("", "The staff list for 1999. P. Usher... and J. Harper."),
     ("Detective", "Jack Harper. Harper... John was Jack's son.", dict(view=None)),
     ("Detective", "John wasn't researching Bristol's history. He was looking for the man who killed his father."),
     ("", "And Peter Usher found out John was getting too close. He knew when John finished his shift, and that he "
          "took the harbour route home. That is where he attacked him."),
-    ("", "The detective looks further. In a drawer, a photograph: two young men in arcade uniforms.", dict(view="ju_photo")),
+]
+SEARCH_DRAWER = [
+    ("", "The detective pulls open the desk drawers. Empty... except the bottom one: a photograph, face down. "
+         "Two young men in arcade uniforms.", dict(view="ju_photo")),
     ("", "Jack Harper and Peter Usher."),
     ("", "On the back, in faded pen:", dict(view="ju_back")),
     ("", "\"I know what you did Peter, come clear this up with me - Jack\""),
@@ -264,9 +274,25 @@ USHER_GONE = [
     ("", "The echo ends.", dict(end_scene=True)),
     ("", "Peter Usher killed Jack Harper in 1999 - the Bristol Pusher's first victim. After that first time, he "
          "couldn't stop. Every killing since was his."),
-    ("", "Usher's computer is still on.", dict(view="computer")),
-    ("", "Train times. Clifton Down - and the next train leaves in twenty minutes."),
-    ("Detective", "He's running. Clifton Down station - now.", dict(view=None)),
+]
+SEARCH_DESK_EMPTY = [("", "Nothing else in the desk. He's cleared it out.")]
+SEARCH_TICKET = [
+    ("", "A train ticket, bought this morning. One way, from Clifton Down - leaving today.", dict(view="ticket")),
+    ("Detective", "He's running.", dict(view=None)),
+]
+SEARCH_LOOKS = {   # the other things in the room (a look each - some of it might help, some won't)
+    "bookcase": [("", "Half the shelves are bare. Gaps where books have been pulled out and packed - all on old Bristol.")],
+    "cabinet": [("", "Department paperwork, exam scripts from years back. One drawer's been emptied completely.")],
+    "box1": [("", "Lecture notes, bundled with string. 'Lost businesses of the harbourside, 1980-2000.'")],
+    "box2": [("", "A kettle, two mugs and a framed degree certificate: Peter Usher, BA, University of Bristol, 2001.")],
+    "box3": [("", "Clothes, thrown in. Packed in a hurry.")],
+    "armchair": [("", "A coat's been left over the armchair. In the pocket, a bus timetable - folded open at the "
+                      "page for Clifton Down.")],
+    "chair": [("", "His desk chair, pushed back. The seat's still warm.")],
+}
+SEARCH_DONE = [
+    ("Detective", "The record, the photograph, the ticket... It was him. All of it."),
+    ("Detective", "Clifton Down. The quickest way's the bus from the College Green stop - now."),
 ]
 
 # ------------------------------------------------------------------ the end (for now)
