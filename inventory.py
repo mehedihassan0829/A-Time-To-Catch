@@ -13,7 +13,8 @@ import pygame
 import pixel_art as pa
 import daynight
 
-POCKET_SLOTS = 8
+POCKET_SLOTS = 16               # two rows of 8
+POCKET_COLS = 8
 PAPER, PAPER_D, INK, LINE, RED = (244, 236, 214), (214, 204, 178), (40, 36, 60), (176, 196, 220), (200, 90, 90)
 
 
@@ -163,6 +164,8 @@ class Pocket:
                     self.sel = (self.sel - 1) % POCKET_SLOTS
                 elif ev.key in (pygame.K_RIGHT, pygame.K_d):
                     self.sel = (self.sel + 1) % POCKET_SLOTS
+                elif ev.key in (pygame.K_UP, pygame.K_w, pygame.K_DOWN, pygame.K_s):
+                    self.sel = (self.sel + POCKET_COLS) % POCKET_SLOTS
                 elif ev.key in (pygame.K_RETURN, pygame.K_e, pygame.K_SPACE):
                     if self.sel < len(self.items) and self.items[self.sel].id == "notebook":
                         self.open_notebook()
@@ -197,18 +200,19 @@ class Pocket:
 
     def _draw_pocket(self, screen, w, h):
         slot = 64
-        pw = POCKET_SLOTS * (slot + 8) + 24
-        ph = slot + 76
-        x0, y0 = (w - pw) // 2, h - ph - 70
+        rows = POCKET_SLOTS // POCKET_COLS
+        pw = POCKET_COLS * (slot + 8) + 24
+        ph = rows * (slot + 8) + 104
+        x0, y0 = (w - pw) // 2, h - ph - 40
         denim, denim_d, stitch = (52, 76, 120), (34, 50, 86), (226, 170, 80)
         pygame.draw.rect(screen, denim_d, (x0 - 4, y0 - 4, pw + 8, ph + 8))
         pygame.draw.rect(screen, denim, (x0, y0, pw, ph))
         for x in range(x0 + 6, x0 + pw - 6, 12):                     # stitching round the pocket
             pygame.draw.rect(screen, stitch, (x, y0 + 6, 6, 2)); pygame.draw.rect(screen, stitch, (x, y0 + ph - 8, 6, 2))
-        title = self.small.render("POCKET   (I to close, Enter to use)", True, (236, 236, 240))
+        title = self.small.render("POCKET   (I to close, arrows to choose, Enter to use)", True, (236, 236, 240))
         screen.blit(title, (x0 + 12, y0 + 12))
         for i in range(POCKET_SLOTS):
-            sx, sy = x0 + 12 + i * (slot + 8), y0 + 34
+            sx, sy = x0 + 12 + (i % POCKET_COLS) * (slot + 8), y0 + 34 + (i // POCKET_COLS) * (slot + 8)
             pygame.draw.rect(screen, denim_d, (sx, sy, slot, slot))
             if i == self.sel:
                 pygame.draw.rect(screen, stitch, (sx - 3, sy - 3, slot + 6, slot + 6), 3)
@@ -217,10 +221,19 @@ class Pocket:
                 screen.blit(ic, (sx + (slot - ic.get_width()) // 2, sy + (slot - ic.get_height()) // 2))
         if self.sel < len(self.items):
             it = self.items[self.sel]
-            txt = self.small.render(f"{it.name} - {it.description}", True, (236, 236, 240))
+            text = f"{it.name} - {it.description}"
         else:
-            txt = self.small.render("(empty)", True, (170, 180, 200))
-        screen.blit(txt, (x0 + 12, y0 + ph - 30))
+            text = "(empty)"
+        words, lines, cur = text.split(), [], ""
+        for wd in words:                                             # wrap the description onto two lines
+            if self.small.size((cur + " " + wd).strip())[0] > pw - 24:
+                lines.append(cur); cur = wd
+            else:
+                cur = (cur + " " + wd).strip()
+        lines.append(cur)
+        for k, ln in enumerate(lines[:3]):
+            screen.blit(self.small.render(ln, True, (236, 236, 240) if self.sel < len(self.items) else (170, 180, 200)),
+                        (x0 + 12, y0 + ph - 62 + k * 17))
 
     def _draw_notebook(self, screen, w, h):
         nb = self.notebook

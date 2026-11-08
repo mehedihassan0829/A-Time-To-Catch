@@ -1742,6 +1742,7 @@ FONT = {
     '&': ".#../#.#./.#../#.##/.##.", "'": "#/#/././.", '-': ".../.../###/.../...", '.': "./././././#"[:9],
     '1': ".#./##./.#./.#./###", '2': "##./..#/.#./#../###", '3': "##./..#/.#./..#/##.", '4': "#.#/#.#/###/..#/..#",
     '5': "###/#../##./..#/##.", '7': "###/..#/.#./.#./.#.", '9': ".#./#.#/.##/..#/##.", '0': ".#./#.#/#.#/#.#/.#.",
+    '6': ".##/#../##./#.#/.#.", '8': ".#./#.#/.#./#.#/.#.",
     ' ': "../../../../..",
 }
 FONT['.'] = "././././#"
@@ -2954,4 +2955,253 @@ def card_icon():
     s = canvas(14, 9)
     R(s, (244, 240, 230), 0, 0, 14, 9)
     R(s, (60, 60, 70), 2, 2, 7, 1); R(s, (140, 140, 150), 2, 4, 9, 1); R(s, (140, 140, 150), 2, 6, 6, 1)
+    return up(add_outline(s)).convert_alpha()
+
+
+# ============================================================== the story's rooms: offices, the arcade store room, home
+STEEL, STEEL_D, STEEL_L = (120, 132, 150), (84, 94, 112), (160, 172, 188)
+CARD, CARD_D = (196, 156, 104), (160, 122, 78)
+
+
+def records_shelf(labels=("1994", "1995")):
+    """Grey store-room shelving with fat lever-arch binders, a year in big numbers down each spine.
+    A label of None leaves a gap (a binder that's gone), just a clean patch in the dust."""
+    s = canvas(L, 27)
+    R(s, OUTLINE, 0, 0, L, 27)
+    R(s, STEEL_D, 1, 1, L - 2, 25)
+    for y in (13, 25):                                                   # the shelves
+        R(s, STEEL_L, 0, y, L, 1); R(s, STEEL, 0, y + 1, L, 1)
+    R(s, STEEL, 0, 0, 1, 27); R(s, STEEL, L - 1, 0, 1, 27)
+    cols = [(40, 70, 130), (140, 40, 40), (40, 100, 70), (120, 90, 40)]
+    for k, lab in enumerate(labels):
+        x = 1 + k * 7
+        if lab is None:
+            R(s, shade(STEEL_D, 0.8), x, 2, 7, 11)                           # an empty slot
+            R(s, (150, 150, 140), x, 12, 7, 1)                               # a line of dust where it stood
+            continue
+        c = cols[int(lab) % 4]
+        R(s, OUTLINE, x, 1, 7, 12); R(s, c, x + 1, 2, 5, 11)
+        R(s, shade(c, 1.25), x + 1, 2, 1, 11)
+        R(s, (236, 232, 214), x + 1, 3, 5, 9)                                # the white label...
+        draw_text(s, lab[2:], x + 1, 5, OUTLINE)                             # ...with the year, big ('98)
+        R(s, OUTLINE, x + 3, 11, 1, 1)                                       # finger hole
+    for x in range(1, L - 1, 5):                                          # archive boxes on the bottom shelf
+        R(s, OUTLINE, x, 16, 5, 9); R(s, CARD, x + 1, 17, 3, 8); R(s, (236, 232, 214), x + 1, 19, 3, 2)
+    return up(s).convert_alpha()
+
+
+def locker(tag=False, seed=0):
+    """A pair of tall staff lockers. tag = John's, with a strip of tape and his initials."""
+    s = canvas(L, 28)
+    R(s, OUTLINE, 0, 0, L, 28)
+    for x in (1, 8):
+        R(s, STEEL, x, 1, 7, 26); R(s, STEEL_L, x, 1, 7, 1); R(s, STEEL_D, x + 6, 1, 1, 26)
+        for y in (3, 5, 7):
+            R(s, STEEL_D, x + 2, y, 3, 1)                                    # vents
+        R(s, (210, 210, 200), x + 5, 13, 1, 3)                               # handle
+        R(s, STEEL_D, x, 23, 7, 1)
+    if tag:
+        R(s, (236, 232, 214), 2, 10, 5, 3); draw_text(s, "J", 3, 9, OUTLINE) if False else None
+        R(s, (40, 40, 44), 3, 11, 1, 1); R(s, (40, 40, 44), 5, 11, 1, 1)    # J.H. in marker pen
+    return up(s).convert_alpha()
+
+
+def boxes(seed=0, open_=False):
+    """A stack of cardboard boxes, taped up (or one left open, half packed)."""
+    rng = random.Random(seed)
+    s = canvas(L, 20)
+    def box(x, y, w, h, opened=False):
+        R(s, OUTLINE, x, y, w, h); R(s, CARD, x + 1, y + 1, w - 2, h - 2)
+        R(s, CARD_D, x + 1, y + 1, w - 2, 2)
+        if opened:
+            R(s, (60, 46, 36), x + 2, y + 1, w - 4, 2)                       # dark inside, flaps up
+            R(s, CARD, x - 1, y - 2, 3, 3); R(s, CARD, x + w - 2, y - 2, 3, 3)
+            R(s, (240, 236, 226), x + 3, y - 1, 3, 2)                        # papers sticking out
+        else:
+            R(s, (200, 180, 140), x + w // 2, y + 1, 1, h - 2)               # parcel tape
+    box(0, 9, 9, 11); box(8, 11, 8, 9)
+    box(2 + rng.randrange(0, 3), 1, 9, 9, open_)
+    return up(s).convert_alpha()
+
+
+def desk(kind="usher", seed=0):
+    """An office desk, two tiles wide, and what's on it:
+    usher = green banker's lamp, papers, books;  packed = drawers out, papers everywhere, no laptop;
+    gazette = a computer and a pile of newspapers."""
+    rng = random.Random(seed)
+    W = 2 * L
+    s = canvas(W, 20)
+    wood, wood_d, wood_l = (122, 80, 50), (88, 56, 36), (150, 104, 68)
+    R(s, OUTLINE, 0, 6, W, 14)
+    R(s, wood_l, 1, 7, W - 2, 4); R(s, wood, 1, 11, W - 2, 8)                # top and front
+    for x in (2, W - 11):                                                    # drawer stacks
+        R(s, wood_d, x, 12, 9, 7)
+        for y in (13, 16):
+            R(s, wood, x + 1, y, 7, 2); R(s, (220, 190, 120), x + 4, y + 1, 1, 1)
+    if kind == "packed":
+        R(s, OUTLINE, W - 12, 17, 11, 4); R(s, wood_l, W - 11, 18, 9, 2)     # a drawer pulled right out
+    if kind in ("usher", "packed"):
+        if kind == "usher":
+            R(s, OUTLINE, 3, 0, 7, 3); R(s, (40, 130, 70), 4, 0, 5, 2)       # green banker's lamp
+            R(s, (200, 170, 80), 6, 3, 1, 4); R(s, (200, 170, 80), 4, 6, 5, 1)
+        for k in range(3 if kind == "usher" else 6):                         # papers
+            px_, py_ = rng.randrange(10, W - 8), rng.randrange(7, 9)
+            R(s, (240, 236, 226), px_, py_, 5, 2); R(s, (180, 176, 168), px_ + 1, py_, 3, 1)
+        if kind == "usher":
+            R(s, OUTLINE, W - 9, 3, 6, 4); R(s, (130, 40, 40), W - 8, 4, 4, 1); R(s, (40, 70, 120), W - 8, 5, 4, 1)  # books
+    if kind == "gazette":
+        R(s, OUTLINE, 10, 0, 12, 8); R(s, (40, 44, 52), 11, 1, 10, 6); R(s, (110, 170, 210), 12, 2, 8, 4)  # monitor
+        R(s, (60, 64, 72), 15, 7, 2, 1)
+        R(s, OUTLINE, 3, 4, 7, 4); R(s, (226, 222, 210), 4, 4, 5, 3); R(s, (90, 90, 96), 4, 5, 5, 1)    # newspapers
+        R(s, (240, 240, 236), W - 7, 5, 3, 3); R(s, (150, 60, 50), W - 7, 5, 3, 1)                       # mug
+    return up(s).convert_alpha()
+
+
+def office_chair(leather=True):
+    s = canvas(10, 14)
+    c = (90, 40, 30) if leather else (40, 44, 52)
+    R(s, OUTLINE, 1, 0, 8, 9); R(s, c, 2, 1, 6, 7); R(s, shade(c, 1.3), 2, 1, 6, 1)
+    R(s, OUTLINE, 0, 7, 10, 3); R(s, shade(c, 0.8), 1, 8, 8, 1)
+    R(s, OUTLINE, 4, 10, 2, 3); R(s, OUTLINE, 1, 13, 8, 1)
+    return up(s).convert_alpha()
+
+
+def bookcase(seed=0, gaps=False):
+    """Floor-to-ceiling oak bookcase. gaps = half emptied (someone's been packing)."""
+    rng = random.Random(seed)
+    s = canvas(L, 30)
+    wood = (104, 68, 44)
+    R(s, OUTLINE, 0, 0, L, 30); R(s, wood, 1, 1, L - 2, 28); R(s, shade(wood, 1.2), 1, 1, L - 2, 1)
+    for y in (8, 15, 22, 29):
+        R(s, shade(wood, 0.7), 1, y, L - 2, 1)
+    for row_y in (2, 9, 16, 23):
+        x = 1
+        while x < L - 1:
+            w = rng.choice((1, 1, 2))
+            if gaps and rng.random() < 0.55:
+                x += w; continue
+            c = rng.choice([(130, 40, 40), (40, 70, 130), (40, 100, 70), (190, 160, 70), (90, 60, 110), (210, 200, 180)])
+            hgt = 6 - rng.randrange(0, 2)
+            R(s, c, x, row_y + 6 - hgt, w, hgt)
+            x += w
+    return up(s).convert_alpha()
+
+
+def filing_cabinet(open_=False):
+    s = canvas(12, 20)
+    R(s, OUTLINE, 0, 0, 12, 20); R(s, (150, 140, 120), 1, 1, 10, 18)
+    for y in (2, 8, 14):
+        R(s, (120, 112, 96), 1, y + 5, 10, 1); R(s, (210, 200, 170), 4, y + 2, 4, 1)
+    if open_:
+        R(s, OUTLINE, 0, 8, 12, 6); R(s, (170, 160, 140), 1, 9, 10, 4)
+        for x in (2, 5, 8):
+            R(s, (240, 236, 226), x, 7, 2, 3)
+    return up(s).convert_alpha()
+
+
+def sofa():
+    """A worn two-seater (two tiles wide)."""
+    W = 2 * L
+    s = canvas(W, 16)
+    c = (110, 60, 50)
+    R(s, OUTLINE, 0, 0, W, 16)
+    R(s, c, 1, 1, W - 2, 7); R(s, shade(c, 1.2), 1, 1, W - 2, 1)               # back
+    R(s, shade(c, 0.8), 1, 8, W - 2, 7)                                       # seat
+    R(s, shade(c, 1.1), 2, 8, 13, 3); R(s, shade(c, 1.1), 17, 8, 13, 3)      # cushions
+    R(s, OUTLINE, 0, 4, 3, 12); R(s, c, 1, 5, 1, 10)                          # arms
+    R(s, OUTLINE, W - 3, 4, 3, 12); R(s, c, W - 2, 5, 1, 10)
+    return up(s).convert_alpha()
+
+
+def side_table(ring=0):
+    """Little table with an old phone on it; ring > 0 = shaking (ringing)."""
+    s = canvas(12, 16)
+    wood = (120, 84, 56)
+    R(s, OUTLINE, 0, 6, 12, 3); R(s, wood, 1, 6, 10, 2)
+    R(s, OUTLINE, 2, 8, 1, 8); R(s, OUTLINE, 9, 8, 1, 8)
+    dx = (-1, 1, 0)[ring % 3] if ring else 0
+    R(s, OUTLINE, 3 + dx, 2, 6, 4); R(s, (30, 30, 34), 4 + dx, 3, 4, 2)       # the phone
+    R(s, OUTLINE, 3 + dx, 1, 6, 1)                                            # handset
+    R(s, (220, 60, 50), 6 + dx, 3, 1, 1)                                      # a light
+    R(s, (236, 230, 210), 1, 5, 3, 1)                                         # ashtray
+    return up(s).convert_alpha()
+
+
+def floor_lamp():
+    s = canvas(10, 28)
+    R(s, OUTLINE, 1, 0, 8, 7); R(s, (236, 214, 160), 2, 1, 6, 5)
+    R(s, OUTLINE, 4, 7, 2, 19); R(s, OUTLINE, 2, 26, 6, 2)
+    return up(s).convert_alpha()
+
+
+def armchair():
+    s = canvas(14, 16)
+    c = (60, 80, 70)
+    R(s, OUTLINE, 0, 0, 14, 16); R(s, c, 1, 1, 12, 7); R(s, shade(c, 1.2), 1, 1, 12, 1)
+    R(s, shade(c, 0.8), 1, 8, 12, 7); R(s, OUTLINE, 0, 5, 3, 11); R(s, OUTLINE, 11, 5, 3, 11)
+    R(s, c, 1, 6, 1, 9); R(s, c, 12, 6, 1, 9)
+    return up(s).convert_alpha()
+
+
+def papers_decal(seed=0):
+    """Papers dropped on the floor (a tile's worth)."""
+    rng = random.Random(seed)
+    s = canvas(L, L)
+    for _ in range(5):
+        x, y = rng.randrange(0, L - 5), rng.randrange(0, L - 4)
+        R(s, (200, 196, 186), x, y + 1, 5, 4); R(s, (244, 240, 230), x, y, 5, 4)
+        R(s, (170, 166, 156), x + 1, y + 1, 3, 1)
+    return up(s).convert_alpha()
+
+
+# ---- pocket icons for the story's evidence
+def recorder_icon():
+    s = canvas(8, 13)
+    R(s, (40, 42, 50), 0, 0, 8, 13); R(s, (70, 74, 86), 1, 1, 6, 4)
+    for y in (2, 3):
+        R(s, (30, 30, 34), 2, y, 4, 1)
+    R(s, (200, 50, 50), 1, 7, 2, 2); R(s, (150, 156, 170), 4, 7, 3, 1); R(s, (150, 156, 170), 4, 9, 3, 1)
+    return up(add_outline(s)).convert_alpha()
+
+
+def token_icon():
+    s = canvas(11, 11)
+    ellipse_fill(s, (150, 110, 40), 5, 5, 5, 5)
+    ellipse_fill(s, (220, 180, 80), 5, 5, 4, 4)
+    ellipse_fill(s, (190, 150, 60), 5, 5, 2, 2)
+    R(s, (250, 230, 150), 3, 2, 2, 1)
+    return up(add_outline(s)).convert_alpha()
+
+
+def photo_icon(tint=(150, 130, 100)):
+    s = canvas(13, 11)
+    R(s, (244, 240, 230), 0, 0, 13, 11)
+    R(s, tint, 1, 1, 11, 7)
+    R(s, shade(tint, 0.6), 2, 4, 2, 4); R(s, shade(tint, 0.6), 6, 3, 2, 5); R(s, shade(tint, 0.6), 9, 4, 2, 4)  # people
+    return up(add_outline(s)).convert_alpha()
+
+
+def notes_icon():
+    s = canvas(11, 13)
+    R(s, (240, 236, 214), 0, 0, 11, 13)
+    for y in range(2, 12, 2):
+        R(s, (90, 100, 150), 1, y, 8 - (y % 4), 1)
+    R(s, (200, 70, 60), 0, 0, 1, 13)
+    return up(add_outline(s)).convert_alpha()
+
+
+def folder_icon(colour=(40, 70, 130), year="98"):
+    s = canvas(11, 14)
+    R(s, colour, 0, 0, 11, 14); R(s, shade(colour, 1.25), 0, 0, 1, 14)
+    R(s, (236, 232, 214), 2, 3, 7, 7)
+    draw_text(s, year, 2, 4, OUTLINE)
+    return up(add_outline(s)).convert_alpha()
+
+
+def cutting_icon():
+    s = canvas(12, 12)
+    R(s, (226, 212, 176), 0, 0, 12, 12)
+    R(s, (60, 50, 40), 1, 1, 10, 2)
+    for y in (5, 7, 9):
+        R(s, (130, 116, 96), 1, y, 4, 1); R(s, (130, 116, 96), 6, y, 5, 1)
     return up(add_outline(s)).convert_alpha()

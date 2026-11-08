@@ -42,12 +42,22 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 
 ## Playing the story
 
-You start on Park Street every time the game runs. The compass at the top of the screen points to where you need to go next. It follows the real walking route around buildings, water and the police tape, and the distance shows as metres to walk.
+Every time the game runs, the story starts the night before in the detective's flat: he's about to light a cigarette when the phone rings. The next morning you're on Park Street. Click (or press E, Space or Enter) to move on through cut scenes.
 
-1. **The crime scene.** The compass leads you down to the harbourside. When you get close to the police officer, a cut scene plays between the detective, the officer and Daniel Shaw. Click to move on to the next line. Daniel gives you his number, which goes into your pocket and your notebook.
-2. **The Bristol Arcade.** Next, the compass points to the arcade where John worked.
+The compass at the top of the screen always points the way to walk to your next objective. It follows the real walking route around buildings, water, the police tape and people, and keeps to the pavement. The distance shows in metres. When the next place is on another map or behind a door, it leads you there first. Press **E** when a prompt appears (a locker, a shelf, a question).
 
-On the way you can call in at **Park Stores**. Press **E** at the counter to buy the morning paper (*The Harbour Gazette*). It stays in your pocket, so you can read it again (I, then Enter).
+1. **The crime scene at the harbourside.** You talk to the police officer and Daniel Shaw, and Daniel gives you his number. The officer then hands you John's audio recorder, which brings on the first **time echo**. Time echoes are flashbacks in black and white, set in the place itself: here John is standing by the water when a shadowy figure comes up behind him.
+2. **The Bristol Arcade.** A hint tells you to beat John's high score on Seagull Bird. Do that and Martin comes over to talk. He lets you into John's locker in the store room, where you find a token, an old photograph and notes that cite Professor Usher.
+3. **Professor Usher's office** (through the Wills Memorial Building's front door). Usher isn't in, and an echo shows John and Usher talking about the photograph.
+4. **The cafés.** You ask for Emily in one café after another. At the fourth, they tell you Emily Carter comes in at 6pm, so you sit and wait. She shows you the photograph, and an echo shows her and John looking at it.
+5. **The Gazette** (Daniel's newspaper office on Park Street). Daniel finds the 1999 front page: Jack Harper, 31, found dead in the river.
+6. **The arcade's store room.** The 1999 staff binder is missing from the shelf. The 1998 one has P. Usher on it.
+7. **Usher's office again.** It's been packed up. You find the missing 1999 record and the photograph of Jack and Usher, which brings on the last echo. Then Usher's computer shows the train times.
+8. **Clifton Down station.** Run off the top of Park Street. To be continued...
+
+Optional: buy the morning paper at Park Stores on the way to the crime scene.
+
+Everything you pick up goes into your pocket (two rows of eight). You can read the papers, records and photographs again from there with **Enter**. All the dialogue is in `quest_script.py`, so the story can be edited without touching the game code.
 
 ## The harbourside and the arcade
 
@@ -81,7 +91,10 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `minimap.py` | the mini-map in the bottom-left corner |
 | `daynight.py` | game clock, lighting and the watch |
 | `inventory.py` | the pocket and notebook |
-| `quest.py` | objectives, the compass, cut scenes and the newspaper |
+| `quest.py` | the story as you play it: objectives, the walking-route compass, cut scenes |
+| `quest_script.py` | everything the characters say, the narration, the objectives and the newspapers' words - edit this to change the story |
+| `echo.py` | the time echoes (black and white flashbacks) and the opening scene in the flat |
+| `documents.py` | the things you read: newspapers, staff records, photographs, the train times |
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
 | `art/drawings/` | the same drawings as PNGs |
 

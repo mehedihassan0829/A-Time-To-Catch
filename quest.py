@@ -1,96 +1,43 @@
-"""The story as you play it: where to go next, the compass that gets you there, cut scenes and the newspaper.
+"""The story as you play it: where to go next, the compass that gets you there, the cut scenes, the time echoes and
+the things you read. The words are all in quest_script.py; the flashback scenes are in echo.py; the documents in
+documents.py.
 
-  - Objectives are in OBJECTIVES, in order. Each one is a place on a map (or a shop to walk into).
-  - The compass at the top of the screen points along the shortest WALKING route to the objective: a
-    breadth-first search over the tiles you can actually stand on (up, down, left, right - so it goes round
-    buildings, the water and the police tape, never straight through them). When the objective's on another
-    map it leads you to the way there (the edge of the map, the steps, the door you came in by).
-  - Cut scenes are lists of lines (who's speaking, what they say) with a few stage directions mixed in.
-    Click (or press E / Space / Enter) for the next line.
-  - The newspaper: buy one at Park Stores on your way (optional).
+  - Objectives are in quest_script.OBJECTIVES, in order.
+  - The compass at the top of the screen points along the shortest WALKING route to the objective: a breadth-first
+    search over the tiles you can actually walk between (up, down, left, right - so it goes round buildings, the water
+    and the police tape, never straight through them). When the objective's on another map, or you're in a shop,
+    it leads you to the way out / the way there first.
+  - Cut scenes: click (or E / Space / Enter) for the next line.
 """
+import heapq
 import math
+import random
 from collections import deque
 import pygame
 
+import quest_script as S
+import documents
+import echo
+
 TILE = 64
 
-# ------------------------------------------------------------------ the story, in order
-OBJECTIVES = [
-    dict(id="crime_scene", label="Get to the crime scene at the harbourside", place="Harbourside", near="crime_officer"),
-    dict(id="arcade", label="Go to the Bristol Arcade, where John worked", place="Harbourside", door=(29, 45), shop="arcade"),
-]
-
-INTRO = [
-    ("", "Bristol. The next morning."),
-    ("", "A body has been pulled out of the harbour. The call came last night - the detective is wanted at the scene."),
-    ("", "Follow the compass at the top of the screen to the harbourside. Park Stores sells the morning papers, if you "
-         "want one on the way."),
-]
-
-CRIME_SCENE = [
-    ("", "The detective arrives at the crime scene. There are police officers, forensic investigators and a small "
-         "cordoned-off area beside the water. John's body has already been removed, but the scene is still being investigated."),
-    ("Detective", "What happened?", dict(face="crime_officer")),
-    ("Police Officer", "John Harper died from drowning after being pushed into the harbourside river."),
-    ("Detective", "Well, who's that over by the cordon strip?", dict(face="crime_daniel")),
-    ("Police Officer", "Daniel Shaw. Journalist. He's been asking questions about the Bristol Pusher for a while. "
-                       "Apparently, he knew the victim."),
-    ("", "The detective approaches him.", dict(walk="approach", face="crime_daniel")),
-    ("Detective", "Daniel Shaw?"),
-    ("Daniel", "That's me. You're the detective investigating John?"),
-    ("Detective", "You knew him?"),
-    ("Daniel", "We spoke a few times. He contacted me about some research he was doing into Bristol's history. "
-               "Old buildings, businesses, things that have disappeared over the years."),
-    ("Detective", "What did that have to do with the Pusher?"),
-    ("Daniel", "That's what I wondered. He started asking about the older cases, particularly the first one. "
-               "He seemed convinced there was something people had overlooked."),
-    ("Detective", "Did he tell you what he'd found?"),
-    ("Daniel", "No. But he mentioned the arcade where he worked more than once. Might be worth looking into."),
-    ("", "Daniel hands the detective his number.", dict(give="daniel_number")),
-    ("Daniel", "Here's my number. Let me know if you find anything."),
-    ("Detective", "I will."),
-    ("", "Daniel walks away.", dict(leave="crime_daniel")),
-]
-
-NEWSPAPER_BUY = [
-    ("Shopkeeper", "Morning. Paper? They're flying off the shelf today - have you seen the front page?"),
-    ("Detective", "I'll take one.", dict(give="newspaper")),
-]
-
-SPEAKERS = {   # name -> (label colour, who it is in the world: "player" or an NPC id)
-    "Detective": ((240, 196, 90), "player"),
-    "Police Officer": ((120, 170, 255), "crime_officer"),
-    "Daniel": ((130, 210, 140), "crime_daniel"),
-    "Shopkeeper": ((230, 150, 120), "shopkeeper"),
+# where the places in the story are: name -> (place, door tile, shop kind)
+DOORS = {
+    "arcade": ("Harbourside", (29, 45), "arcade"),
+    "usher": ("Park Street", (11, 18), "usher"),
+    "gazette": ("Park Street", (122, 19), "gazette"),
 }
+SEAGULL_FRONT = (3, 2)            # in the arcade: in front of the Seagull Bird machine on the back wall
+LOCKER_FRONT = (21, 5)            # in the store room: in front of John's locker
+SHELF_FRONT = (19, 2)             # in the store room: in front of the staff records
+STATION_EDGE = ("Park Street", 0, (20, 21, 22))   # off the top of Park Street, up towards Clifton Down
+VIEW_ITEMS = {"newspaper": "paper2026", "old_photo": "photo1999", "emily_photo": "photo1999", "cutting": "paper1999",
+              "record1998": "record1998", "record1999": "record1999", "ju_photo": "ju_photo"}
 
-DANIEL_NUMBER = "07700 900 417"
 
-# ------------------------------------------------------------------ the morning paper
-PAPER = dict(
-    masthead="THE HARBOUR GAZETTE",
-    dateline="SATURDAY 7 NOVEMBER 2026", price="90p",
-    kicker="BODY FOUND IN THE FLOATING HARBOUR",
-    headline="THE BRISTOL PUSHER IS BACK",
-    standfirst="...and he will be gone as quick as he came",
-    byline="By our crime reporter",
-    body=[
-        "A man found in the water beside the harbourside decks in the early hours of yesterday morning has been "
-        "named locally as John Harper, 29, of Bristol.",
-        "Police say Mr Harper drowned, and that they believe he was pushed. Officers have cordoned off part of the "
-        "waterfront off Anchor Road while forensic teams examine the scene.",
-        "It is the first death linked to the so-called Bristol Pusher in eleven years. The killer, who has never "
-        "been caught, is thought to have claimed a first victim in the same harbour in 1999.",
-        "Mr Harper worked at an arcade on the harbourside and is believed to have been walking home along the "
-        "water after his shift. A colleague described him as \"a quiet lad, always reading up on old Bristol.\"",
-        "Detectives are appealing for anyone who was near Anchor Road or the harbourside decks late on Thursday "
-        "night to come forward.",
-    ],
-    caption="Police at the scene on the harbourside decks",
-    inside=["Harbourside market back this weekend - p4", "Clifton Down: trains delayed again - p7",
-            "Weather: drizzle, 11C"],
-)
+def story_start(hours):
+    """Every run the story starts the next morning at half eight."""
+    return (int(hours // 24) + 1) * 24 + 8.5
 
 
 # ================================================================== the compass: shortest walking route
@@ -101,6 +48,8 @@ class Compass:
         self.angle = None
         self.steps = None
         self.final = None            # once you're there: which way to keep walking (into a door / off the map edge)
+        self.finals = {}             # ...or per target tile, when the targets are doors facing different ways
+        self._len_key, self._len = None, 0
 
     def links(self, world):
         """Where you can walk between neighbouring tiles. east[y][x]: from (x, y) to (x+1, y) the way's clear for a
@@ -134,27 +83,54 @@ class Compass:
         if y > 0 and south[y - 1][x]: yield x, y - 1
 
     def bfs(self, world, targets, blocked=()):
-        """Steps from every tile to the nearest target, walking only up/down/left/right where the way is clear."""
+        """Cost to the nearest target from every tile, walking only up/down/left/right where the way is clear.
+        Pavements cost 1 a step, roads cost more (so the route keeps to the pavement and crosses the road straight
+        over, at a crossing where there is one) - like a person would walk."""
         lk = self.links(world)
         INF = 1 << 30
         dist = [[INF] * world.w for _ in range(world.h)]
-        q = deque()
+        ground = getattr(world, "ground", None)
+        heap = []
         for x, y in targets:
             if 0 <= x < world.w and 0 <= y < world.h:
-                dist[y][x] = 0; q.append((x, y))
-        while q:
-            x, y = q.popleft()
-            d = dist[y][x] + 1
+                dist[y][x] = 0; heap.append((0, x, y))
+        heapq.heapify(heap)
+        while heap:
+            d0, x, y = heapq.heappop(heap)
+            if d0 > dist[y][x]:
+                continue
             for nx, ny in self.steps_from(world, lk, x, y):
-                if dist[ny][nx] > d and (nx, ny) not in blocked:
-                    dist[ny][nx] = d; q.append((nx, ny))
+                if (nx, ny) in blocked:
+                    continue
+                d = d0 + (4 if ground is not None and ground[ny][nx] in "=`" else 1)
+                if d < dist[ny][nx]:
+                    dist[ny][nx] = d; heapq.heappush(heap, (d, nx, ny))
         return dist
 
+    def path_len(self, world, dist, x, y):
+        """How many steps it really is along the route from (x, y)."""
+        n = 0
+        while dist[y][x] > 0 and n < 2000:
+            nxt = self.next_tile(world, dist, x, y)
+            if nxt is None:
+                break
+            x, y = nxt; n += 1
+        return n
+
+    STILL = ("stand", "sit", "work", "press", "sleep", "dance", "script")
+
     def field(self, world, targets):
-        key = (id(world), targets)
+        """Steps to the targets from everywhere - going round walls, and round people standing still (customers at
+        the machines, people chatting) as if they were furniture."""
+        blocked = frozenset((int(a.x // TILE), int(a.y // TILE)) for a in world.actors
+                            if getattr(a, "behaviour", "") in self.STILL and getattr(a, "shown", True)
+                            and not getattr(a, "moving", False)) - frozenset(targets)
+        key = (id(world), targets, blocked)
         got = self.field_cache.get(key)
         if got is None:
-            got = self.field_cache[key] = self.bfs(world, targets)
+            if len(self.field_cache) > 40:
+                self.field_cache.clear()
+            got = self.field_cache[key] = self.bfs(world, targets, blocked)
         return got
 
     def next_tile(self, world, dist, x, y):
@@ -165,11 +141,8 @@ class Compass:
                 best = (nx, ny)
         return best
 
-    def point(self, world, pos, targets, dt):
-        """Update the needle: aim a few steps along the route from where you're standing."""
-        if not targets:
-            self.steps = None; return
-        dist = self.field(world, targets)
+    def nearest(self, world, dist, pos):
+        """The closest tile with a route from it, near where you're standing: (steps, x, y) or None."""
         INF = 1 << 30
         tx, ty = int(pos[0] // TILE), int(pos[1] // TILE)
         best = None
@@ -182,17 +155,30 @@ class Compass:
                             best = (dist[y][x] + abs(dx) + abs(dy), x, y)
             if best:
                 break
+        return best
+
+    def point(self, world, pos, targets, dt):
+        """Update the needle: aim a few steps along the route from where you're standing."""
+        if not targets:
+            self.steps = None; return
+        dist = self.field(world, targets)
+        best = self.nearest(world, dist, pos)
         if best is None:
             self.steps = None; return
-        self.steps, x, y = best
+        _, x, y = best
+        key = (id(dist), x, y)
+        if self._len_key != key:
+            self._len_key, self._len = key, self.path_len(world, dist, x, y)
+        self.steps = self._len
         for _ in range(4):                              # walk the route a few tiles ahead
             nxt = self.next_tile(world, dist, x, y) if dist[y][x] > 0 else None
             if nxt is None:
                 break
             x, y = nxt
         aim = ((x + 0.5) * TILE - pos[0], (y + 0.6) * TILE - pos[1])
-        if self.steps == 0 and self.final:
-            want = {"right": 0.0, "down": math.pi / 2, "left": math.pi, "up": -math.pi / 2}[self.final]
+        final = self.finals.get((best[1], best[2]), self.final)
+        if self.steps == 0 and final:
+            want = {"right": 0.0, "down": math.pi / 2, "left": math.pi, "up": -math.pi / 2}[final]
         elif abs(aim[0]) < 4 and abs(aim[1]) < 4:
             return
         else:
@@ -214,20 +200,22 @@ class ScriptKeys:
 
 
 class Cutscene:
-    def __init__(self, lines, story, title=None):
+    def __init__(self, lines, story, then=None):
         self.lines = lines
         self.story = story
+        self.then = then                 # what happens when it's over
         self.i = 0
         self.shown = 0.0                 # how much of the current line has been typed out
         self.t = 0.0
+        self.t_line = 0.0
         self.bars = 0.0                  # the black bars sliding in
+        self.auto = None                 # this line moves on by itself after this long
         self.walk_to = None
         self.walk_time = 0.0
         self.walk_stuck = 0.0
         self.walk_best = 1e9
         self.walk_field = None
         self.done = False
-        self.title = title
         self._enter_line()
 
     def line(self):
@@ -237,6 +225,8 @@ class Cutscene:
         ln = self.line()
         stage = ln[2] if len(ln) > 2 else {}
         self.shown = 0.0
+        self.t_line = 0.0
+        self.auto = stage.get("glitch") or stage.get("auto")
         self.story.stage_direction(stage, self)
 
     def advance(self):
@@ -245,8 +235,7 @@ class Cutscene:
         text = self.line()[1]
         if self.shown < len(text):       # finish typing the line first
             self.shown = len(text); return
-        if self.walk_to is not None:     # still walking: get there now
-            self.story.snap_player(self.walk_to); self.walk_to = None
+        self.story.settle(self)          # anyone still walking: get them there now
         self.i += 1
         if self.i >= len(self.lines):
             self.done = True
@@ -255,11 +244,15 @@ class Cutscene:
 
     def update(self, dt):
         self.t += dt
+        self.t_line += dt
         self.bars = min(1.0, self.bars + dt * 3)
         self.shown += dt * 55
         if self.walk_to is not None:
             self.walk_time += dt
             self.walk_stuck += dt
+        if self.auto is not None and self.t_line >= self.auto:
+            self.shown = len(self.line()[1])
+            self.advance()
 
     def keys(self, player):
         """Walk the detective to wherever the scene says, along the walking route (round people and things)."""
@@ -296,121 +289,392 @@ class Cutscene:
 
 # ================================================================== the story
 class Story:
-    def __init__(self, pocket, item_cls, icons):
+    def __init__(self, pocket, item_cls, icons, player, hooks):
+        """hooks: render (draws a world for a scene), make_world (builds a place/room for a scene), clock (the game
+        clock), places (every map by name)."""
         self.pocket = pocket
         self.Item = item_cls
-        self.icons = icons                  # name -> icon function
+        self.icons = icons                  # name -> icon function (pixel_art)
+        self.player = player
+        self.hooks = hooks
+        self.clock = hooks["clock"]
         self.obj = 0
         self.cutscene = None
-        self.reading_paper = False
+        self.reading = None                 # a document open outside a cut scene (re-reading something)
+        self.view = None                    # the document shown during the cut scene
+        self.scene = None                   # a time echo / the opening, instead of the game
+        self.black = False
+        self.live_glitch = 0.0
+        self.rng = random.Random(9)
         self.compass = Compass()
         self.flags = set()
         self.world = None
-        self.player = None
+        self.world_id = None
         self.place = None
-        self.places = {}
+        self.places = hooks["places"]
+        self.shop = None                    # the shop you're in (its door etc.)
+        self.shop_place = None
         self.face_after_walk = None
         self.toasts = []                    # [text, time left], shown one after another
+        self.got = []                       # [text, time left]: things you've just been given (top right)
+        self.hint = None                    # [text, time left] - a hint pop-up
         self.fonts = None
-        self.paper_img = None
-        self.cutscene = Cutscene(INTRO, self)
+        self.walkers = []                   # [actor, field] people walking over to the detective
+        self.later = []                     # [time, fn]: things that happen in a moment
+        self.cafes_asked = []               # (place, door) of each café you've asked about Emily in
+        self.emily_cafe = None              # (place, shop) - where Emily goes at six
+        self.fade = 0.0                     # waiting: fade to black and back
+        self.fade_fn = None
+        self.photos = {}
+        self.ids = {}                       # who's who in the world now: "martin", "barista", "daniel", ...
+        self.cutscene = Cutscene(S.OPENING, self)
 
     # ---- what's going on
     @property
     def busy(self):
-        """True while a cut scene or the newspaper has the screen (no walking about, no other keys)."""
-        return self.cutscene is not None or self.reading_paper
+        """True while a cut scene, a document or a fade has the screen (no walking about, no other keys)."""
+        return self.cutscene is not None or self.reading is not None or self.fade > 0
+
+    def objective(self):
+        return S.OBJECTIVES[self.obj] if self.obj < len(S.OBJECTIVES) else None
+
+    def oid(self):
+        ob = self.objective()
+        return ob["id"] if ob else None
 
     def say(self, text, secs):
         self.toasts.append([text, secs])
 
-    def objective(self):
-        return OBJECTIVES[self.obj] if self.obj < len(OBJECTIVES) else None
-
     def complete(self, toast=None):
         self.obj += 1
         nxt = self.objective()
+        self.toasts = []                    # an old "new objective" pop-up is out of date now
         self.say(toast or (f"New objective: {nxt['label']}" if nxt else "To be continued..."), 5.0)
         self.compass.angle = None
         self.compass.steps = None
 
+    def label(self):
+        ob = self.objective()
+        if ob is None:
+            return ""
+        text = ob["label"]
+        if ob["id"] == "wait_emily" and self.emily_cafe:
+            text = f"Wait for Emily Carter at {self.emily_cafe[1]['brand'].title()} (she comes in at 6pm)"
+        if ob["id"] in ("arcade", "high_score", "locker", "records") and not self._open("arcade"):
+            text += " (the arcade opens at 10:00 - hold T to pass the time)"
+        return text
+
+    def _open(self, kind):
+        import people
+        return people.is_open(kind, self.clock.hour)
+
     # ---- each frame
     def update(self, dt, world, place, player, places):
-        self.world, self.player, self.place, self.places = world, player, place, places
+        self.player, self.place, self.places = player, place, places
+        if world is not self.world:
+            self.world = world
+            self._prepare(world)
+        self.live_glitch = max(0.0, self.live_glitch - dt)
+        if self.got:
+            self.got[0][1] -= dt
+            if self.got[0][1] <= 0:
+                self.got.pop(0)
         if self.toasts and not self.busy:
             self.toasts[0][1] -= dt
             if self.toasts[0][1] <= 0:
                 self.toasts.pop(0)
-        for a in list(world.actors):                                  # Daniel walking off along the water
-            if getattr(a, "leaving", False):
-                a.talking = False; a.moving = True
-                if a.y < a.leave_y:
-                    a.y = min(a.leave_y, a.y + 60 * dt); a.d = "down"
-                else:
-                    a.x -= 72 * dt; a.d = "left"
-                if a.x < a.leave_x:
-                    world.actors.remove(a)
+        if self.hint and not self.busy:
+            self.hint[1] -= dt
+            if self.hint[1] <= 0:
+                self.hint = None
+        for item in list(self.later):
+            item[0] -= dt
+            if item[0] <= 0:
+                self.later.remove(item); item[1]()
+        if self.fade > 0:                                   # waiting for six o'clock
+            before = self.fade
+            self.fade = max(0.0, self.fade - dt)
+            if before > 1.0 >= self.fade and self.fade_fn:
+                fn, self.fade_fn = self.fade_fn, None
+                fn()
+        self._walk_people(dt, world)
+        if self.scene:
+            self.scene.update(dt)
         if self.cutscene:
             self.cutscene.update(dt)
             if self.cutscene.done:
                 self._end_cutscene()
             return
-        if "daniel_left" in self.flags and world.interior is None:   # Daniel's gone (even if the map's rebuilt)
-            world.actors = [a for a in world.actors if a.id != "crime_daniel" or getattr(a, "leaving", False)]
+        if self.busy:
+            return
+        self._check(world, place, player)
+        if self.cutscene:
+            return
         ob = self.objective()
         if ob is None:
             self.compass.steps = None
             return
-        if ob["id"] == "crime_scene" and place == ob["place"] and world.interior is None:
+        self.compass.point(world, (player.pos.x, player.pos.y), self.targets(world, place), dt)
+
+    def _prepare(self, world):
+        """A new place/room: make the people the story needs (and take away the ones who've gone)."""
+        import people
+        self.ids = {}
+        kind = (world.interior or {}).get("kind")
+        if world.interior is None and "daniel_left" in self.flags:
+            world.actors = [a for a in world.actors if a.id != "crime_daniel"]
+        for a in world.actors:
+            if a.id.endswith("_staff"):
+                if kind == "arcade":
+                    a.name = "Martin Bell"; a.lines = [["Enjoy the games."]]; self.ids["martin"] = a.id
+                elif kind == "cafe":
+                    self.ids["barista"] = a.id
+                elif kind == "corner":
+                    self.ids["shopkeeper"] = a.id
+        if kind == "gazette":                       # a couple of reporters - and Daniel, once he's left the harbour
+            def sitter(nid, tx, ty, role, name=None, lines=None):
+                n = people.NPC(nid, tx * TILE + 32, ty * TILE + 52, role, "sit", d="down", name=name, lines=lines)
+                n.pose = "sit"; n.sort_bias = 4
+                world.actors.append(n)
+                return n
+            if "daniel_left" in self.flags:
+                sitter("daniel", 7, 5, "journalist", "Daniel Shaw", [["Let me know if you find anything."]])
+                self.ids["daniel"] = "daniel"
+            sitter("reporter1", 2, 2, "public")
+            sitter("reporter2", 7, 2, "public")
+        if kind == "cafe" and self.oid() == "wait_emily" and self.emily_cafe and self.shop is self.emily_cafe[1] \
+                and 18 <= self.clock.hour < 19.9:
+            self.later.append([1.2, self._emily_arrives])
+
+    def entered(self, shop):
+        """Called by the game when you walk into a shop (None when you come back out)."""
+        self.shop = shop
+        if shop is not None:
+            self.shop_place = self.place            # the street the shop's on
+
+    # ---- reaching things
+    def _check(self, world, place, player):
+        o = self.oid()
+        kind = (world.interior or {}).get("kind")
+        px, py = player.pos.x, player.pos.y
+        if o == "crime_scene" and place == "Harbourside" and kind is None:
             cs = getattr(world._map_def, "CRIME_SCENE", None)
             officer = self._actor("crime_officer")
-            if cs and officer and math.hypot(player.pos.x - officer.x, player.pos.y - officer.y) < cs["trigger"] * TILE:
+            if cs and officer and math.hypot(px - officer.x, py - officer.y) < cs["trigger"] * TILE:
                 self.compass.steps = None
-                self.start(CRIME_SCENE)
-                return
-        at_door = False
-        if ob.get("door") and place == ob["place"] and world.interior is None:
-            dx, dy = ob["door"]
-            at_door = math.hypot(player.pos.x - (dx + 0.5) * TILE, player.pos.y - (dy + 1.4) * TILE) < 0.9 * TILE
-        if at_door or (ob.get("shop") and world.interior is not None and world.interior.get("kind") == ob["shop"]
-                       and place == ob["place"]):
-            self.complete("You've reached the Bristol Arcade. To be continued...")
-            return
-        self.compass.point(world, (player.pos.x, player.pos.y), self.targets(world, place, places), dt)
+                self.start(S.CRIME_SCENE, self._after_crime_scene)
+        elif o == "arcade" and kind == "arcade":
+            self.later.append([0.5, lambda: self.start(S.ARCADE_ENTER, self._after_arcade_enter)])
+            self.flags.add("in_arcade"); self.complete_quiet()
+        elif o == "usher" and kind == "usher":
+            self.start(S.USHER_OFFICE, lambda: self.complete())
+        elif o == "usher2" and kind == "usher":
+            self.start(S.USHER_GONE, lambda: self.complete())
+        elif o == "daniel" and kind == "gazette":
+            d = self._actor("daniel")
+            if d is not None and math.hypot(px - d.x, py - d.y) < 2.4 * TILE:
+                self.start(S.DANIEL, lambda: self.complete())
+        elif o == "wait_emily" and kind == "cafe" and self.emily_cafe and self.shop is self.emily_cafe[1] \
+                and 18 <= self.clock.hour < 19.9 and "emily_here" not in self.flags and not self.later:
+            self.later.append([0.8, self._emily_arrives])
+        elif o == "station" and place == STATION_EDGE[0] and kind is None and px < 1.3 * TILE:
+            self.start(S.ENDING, lambda: self.complete("Thanks for playing. To be continued..."))
 
-    def targets(self, world, place, places):
-        """The tiles the compass is heading for, on the map you're on now."""
-        ob = self.objective()
+    def complete_quiet(self):
+        """Move on without the 'new objective' pop-up (the next scene says it)."""
+        self.obj += 1
+        self.compass.angle = None; self.compass.steps = None
+
+    def _after_crime_scene(self):
+        self.later.append([1.0, lambda: self.start(S.RECORDER, lambda: self.complete())])
+
+    def _after_arcade_enter(self):
+        self.hint = [S.ARCADE_HINT, 9.0]
+
+    # ---- things you press E for (returns the prompt to show, or None)
+    def prompt(self, world, place, player):
+        if self.busy:
+            return None
+        o = self.oid()
+        kind = (world.interior or {}).get("kind")
+        px, py = player.pos.x, player.pos.y
+        near = lambda tx, ty, r: math.hypot(px - (tx + 0.5) * TILE, py - (ty + 0.5) * TILE) < r * TILE
+        if kind == "corner" and "newspaper" not in self.flags and self._near_staff(world, player):
+            return "E: buy the morning paper"
+        if o == "locker" and kind == "arcade" and near(*LOCKER_FRONT, 1.3):
+            return "E: open John's locker"
+        if o == "records" and kind == "arcade" and py < 3.4 * TILE and 17.5 * TILE < px < 22.5 * TILE:
+            return "E: look through the staff records"
+        if o == "find_emily" and kind == "cafe" and self._near_staff(world, player) and \
+                self._cafe_key() not in self.cafes_asked:
+            return "E: ask about Emily"
+        if o == "wait_emily" and kind == "cafe" and self.emily_cafe and self.shop is self.emily_cafe[1] \
+                and "emily_here" not in self.flags and not (18 <= self.clock.hour < 19.9):
+            return "E: sit down and wait for Emily (6pm)"
+        return None
+
+    def interact(self, world, place, player):
+        """E pressed with a prompt showing: do it. Returns True if the story used the key."""
+        p = self.prompt(world, place, player)
+        if p is None:
+            return False
+        if p.startswith("E: buy"):
+            self.start(S.NEWSPAPER_BUY, lambda: self.open_view("paper2026"), talking=self.ids.get("shopkeeper"))
+        elif p.startswith("E: open John's"):
+            self.start(S.LOCKER, lambda: self.complete())
+        elif p.startswith("E: look through"):
+            self.start(S.RECORDS, lambda: self.complete())
+        elif p.startswith("E: ask"):
+            key = self._cafe_key()
+            if key in self.cafes_asked:
+                self.start(S.CAFE_ASKED_AGAIN, talking=self.ids.get("barista"))
+            else:
+                self.cafes_asked.append(key)
+                n = len(self.cafes_asked)
+                lines = S.CAFE_ASKS[min(n, len(S.CAFE_ASKS)) - 1]
+                then = None
+                if n >= len(S.CAFE_ASKS):
+                    self.emily_cafe = (self.shop_place, self.shop)
+                    then = lambda: self.complete()
+                self.start(lines, then, talking=self.ids.get("barista"))
+        elif p.startswith("E: sit"):
+            def six():
+                h = self.clock.hours
+                day = int(h // 24) * 24
+                self.clock.hours = day + 18.0 if h % 24 < 18 else day + 24 + 18.0
+                self.later.append([1.6, self._emily_arrives])
+            self.fade, self.fade_fn = 2.0, six
+            self.say("Later...", 2.0)
+        return True
+
+    def _cafe_key(self):
+        return (self.shop_place, tuple(self.shop["door"])) if self.shop else None
+
+    def _near_staff(self, world, player):
+        for a in world.actors:
+            if a.id.endswith("_staff") and math.hypot(player.pos.x - a.x, player.pos.y - a.y) < 2.2 * TILE:
+                return True
+        tx, ty = int(player.pos.x // TILE), int(player.pos.y // TILE)
+        return any(world.at(tx + dx, ty + dy, " ") in "XQ" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+
+    def _emily_arrives(self):
+        import people
+        w = self.world
+        if "emily_here" in self.flags or w is None or (w.interior or {}).get("kind") != "cafe":
+            return
+        self.flags.add("emily_here")
+        n = people.NPC("emily", w.spawn[0], w.spawn[1], "public", "script", d="up", name="Emily Carter")
+        n.look = echo.LOOKS["emily"]; n.frames = {}
+        n.lines = [["I hope you find whoever did this."]]
+        w.actors.append(n)
+        self.ids["emily"] = "emily"
+        self.start(S.EMILY, lambda: self.complete())
+
+    # ---- the arcade machine
+    def arcade_goal(self, machine):
+        if self.oid() == "high_score" and machine == S.JOHN_MACHINE:
+            return (S.JOHN_SCORE, "J.HARPER")
+        return None
+
+    def won(self, machine):
+        if self.oid() == "high_score" and machine == S.JOHN_MACHINE:
+            self.start(S.MARTIN, lambda: self.complete())
+
+    def room(self, kind):
+        """Which layout a room has now (Usher's office is packed up by the end)."""
+        if kind == "usher" and self.oid() in ("usher2", "station", None):
+            return "usher_packed", "packed"
+        return kind, None
+
+    # ---- where the compass points
+    def targets(self, world, place):
+        o = self.oid()
         self.compass.final = None
-        if ob is None:
+        self.compass.finals = {}
+        if o is None:
             return ()
-        if world.interior is not None:                  # in a shop: back out the door first
+        kind = (world.interior or {}).get("kind")
+
+        def exit_():
             self.compass.final = "down"
-            if world.exit_tile:
-                return (tuple(world.exit_tile),)
-            return ()
-        if place != ob["place"]:                        # another map: head for the way there
-            hop = self._next_hop(place, ob["place"], places)
+            return (tuple(world.exit_tile),) if world.exit_tile else ()
+
+        def go_to(goal_place, tiles, final=None):
+            if kind is not None:
+                return exit_()
+            if place != goal_place:
+                return self._hop_targets(world, place, goal_place)
+            self.compass.final = final
+            return tuple(tiles)
+
+        def door(name):
+            p, (dx, dy), k = DOORS[name]
+            if kind is not None and kind != k:
+                return exit_()
+            return go_to(p, [(dx, dy + 1)], "up")
+
+        if o == "crime_scene":
+            a = self._actor("crime_officer") if place == "Harbourside" else None
+            if place == "Harbourside" and kind is None and a is not None:
+                cx, cy = int(a.x // TILE), int(a.y // TILE)
+                return tuple((cx + dx, cy + dy) for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) if abs(dx) + abs(dy) <= 2)
+            return go_to("Harbourside", [])
+        if o in ("arcade", "usher", "usher2", "daniel"):
+            name = {"arcade": "arcade", "usher": "usher", "usher2": "usher", "daniel": "gazette"}[o]
+            if o == "daniel" and kind == "gazette":
+                d = self._actor("daniel")
+                return ((int(d.x // TILE), int(d.y // TILE) + 2),) if d else ()
+            return door(name)
+        if o in ("high_score", "locker", "records"):
+            if kind == "arcade":
+                self.compass.final = "up"
+                return {"high_score": (SEAGULL_FRONT,), "locker": (LOCKER_FRONT,),
+                        "records": (SHELF_FRONT, (SHELF_FRONT[0] + 1, SHELF_FRONT[1]))}[o]
+            return door("arcade")
+        if o == "find_emily":
+            if kind == "cafe":
+                if self._cafe_key() not in self.cafes_asked:
+                    for a in world.actors:
+                        if a.id.endswith("_staff"):
+                            return ((int(a.x // TILE), int(a.y // TILE) + 2),)
+                return exit_()
+            if kind is not None:
+                return exit_()
             out = []
-            for pt in world.portals:
-                if pt.get("to") == hop:
-                    self.compass.final = pt.get("dir", "up")
-                    a = pt["area"]
-                    for ty in range(a.top // TILE, (a.bottom - 1) // TILE + 1):
-                        for tx in range(a.left // TILE, (a.right - 1) // TILE + 1):
-                            out.append((tx, ty))
-            return tuple(out)
-        if ob.get("near"):
-            a = self._actor(ob["near"])
-            if a is None:
+            for shop in getattr(world._map_def, "SHOPS", []) if not isinstance(world._map_def, str) else []:
+                if shop["kind"] == "cafe" and (place, tuple(shop["door"])) not in self.cafes_asked:
+                    dx, dy = shop["door"]
+                    tile = (dx, dy + 1) if shop["side"] == "south" else (dx, dy - 1)
+                    out.append(tile)
+                    self.compass.finals[tile] = "up" if shop["side"] == "south" else "down"
+            if out:
+                return tuple(out)
+            return self._hop_targets(world, place, "Park Street") if place != "Park Street" else ()
+        if o == "wait_emily":
+            ep, shop = self.emily_cafe
+            if kind == "cafe" and self.shop is shop:
                 return ()
-            cx, cy = int(a.x // TILE), int(a.y // TILE)
-            return tuple((cx + dx, cy + dy) for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) if abs(dx) + abs(dy) <= 2)
-        if ob.get("door"):
-            dx, dy = ob["door"]
-            self.compass.final = "up"
-            return ((dx, dy + 1),)
+            dx, dy = shop["door"]
+            if kind is not None:
+                return exit_()
+            side = shop["side"]
+            return go_to(ep, [(dx, dy + 1) if side == "south" else (dx, dy - 1)], "up" if side == "south" else "down")
+        if o == "station":
+            p, x, rows = STATION_EDGE
+            return go_to(p, [(x, y) for y in rows], "left")
         return ()
+
+    def _hop_targets(self, world, place, goal):
+        hop = self._next_hop(place, goal, self.places)
+        out = []
+        for pt in world.portals:
+            if pt.get("to") == hop:
+                self.compass.final = pt.get("dir", "up")
+                a = pt["area"]
+                for ty in range(a.top // TILE, (a.bottom - 1) // TILE + 1):
+                    for tx in range(a.left // TILE, (a.right - 1) // TILE + 1):
+                        out.append((tx, ty))
+        return tuple(out)
 
     @staticmethod
     def _next_hop(here, goal, places):
@@ -441,31 +705,67 @@ class Story:
         return None
 
     # ---- cut scenes
-    def start(self, lines):
+    def start(self, lines, then=None, talking=None):
         if self.pocket.reading:
             self.pocket.close_notebook()
         self.pocket.open = False
-        self.cutscene = Cutscene(lines, self)
-
-    def route(self, gx, gy):
-        """Steps to (gx, gy) from every tile, going round walls AND the people standing about."""
-        w = self.world
-        blocked = {(int(a.x // TILE), int(a.y // TILE)) for a in w.actors} - {(gx, gy)}
-        return self.compass.bfs(w, ((gx, gy),), blocked)
+        if talking:
+            a = self._actor(talking)
+            if a is not None:
+                self._face_each_other(a)
+        self.cutscene = Cutscene(lines, self, then)
 
     def _end_cutscene(self):
-        lines = self.cutscene.lines
+        cs = self.cutscene
         self.cutscene = None
+        self.view = None
+        self.black = False
+        self.scene = None
         for a in (self.world.actors if self.world else []):
             a.talking = False
-        if lines is CRIME_SCENE:
-            self.complete()
-        elif lines is NEWSPAPER_BUY:
-            self.open_paper()
+        if cs.then:
+            cs.then()
+
+    def settle(self, cs):
+        """The player clicked on: anyone still walking gets where they're going."""
+        if cs.walk_to is not None:
+            self.snap_player(cs.walk_to); cs.walk_to = None
+            if self.face_after_walk:
+                self.face_player(self.face_after_walk)
+        if self.scene is not None:
+            self.scene.settle()
+        for actor, _ in list(self.walkers):
+            self._arrive(actor, snap=True)
 
     def stage_direction(self, stage, cs):
+        self.black = bool(stage.get("black"))
         if not stage:
             return
+        if "scene" in stage:
+            self.scene = echo.Scene(stage["scene"], self.hooks["make_world"], self.hooks["render"], self.player,
+                                    self._cafe_seed())
+        if "cut" in stage:
+            self.scene = echo.Scene(stage["cut"], self.hooks["make_world"], self.hooks["render"], self.player,
+                                    self._cafe_seed())
+            self.scene.flash = 0.0
+        if stage.get("end_scene"):
+            self.scene = None
+        if stage.get("glitch"):
+            if self.scene is not None:
+                self.scene.glitch = stage["glitch"]
+            else:
+                self.live_glitch = stage["glitch"]
+        if self.scene is not None:
+            if "move" in stage:
+                self.scene.move(*stage["move"])
+            if stage.get("push"):
+                self.scene.push()
+            if "ring" in stage:
+                self.scene.ring = stage["ring"]
+            if "flame" in stage:
+                self.scene.flame = stage["flame"]
+        if "view" in stage:
+            self.view = stage["view"]
         if "face" in stage and stage.get("walk") is None:
             self.face_player(stage["face"])
         if stage.get("walk") == "approach":
@@ -477,41 +777,127 @@ class Story:
                 cs.walk_best = 1e9
                 cs.walk_field = self.route(int(ax), int(ay))
                 self.face_after_walk = stage.get("face")
-        if stage.get("give") == "daniel_number":
-            self.flags.add("daniel_number")
-            self.pocket.add(self.Item("daniel_number", "Daniel's number",
-                                      f"Daniel Shaw, journalist. {DANIEL_NUMBER}. He knew John Harper.", self.icons["card"]))
-            nb = self.pocket.notebook
-            if DANIEL_NUMBER not in "".join(nb.pages):
-                note = f"Daniel Shaw (journalist) - {DANIEL_NUMBER}. Knew John Harper. Said look at the arcade."
-                nb.page = len(nb.pages) - 1
-                nb.type(("\n" if nb.pages[nb.page].strip() else "") + note)
-                nb.save()
-            self.say("Daniel's number is in your pocket (and your notebook)", 4.0)
-        if stage.get("give") == "newspaper":
-            self.flags.add("newspaper")
-            it = self.Item("newspaper", "Newspaper", "The Harbour Gazette. THE BRISTOL PUSHER IS BACK. Enter to read it.",
-                           self.icons["newspaper"])
-            it.use = self.open_paper
-            self.pocket.add(it)
+        if "give" in stage:
+            gives = stage["give"] if isinstance(stage["give"], tuple) else (stage["give"],)
+            for g in gives:
+                self.give(g)
         if stage.get("leave"):
             a = self._actor(stage["leave"])
             if a is not None:
                 a.leaving = True
+                a.behaviour = "script"
                 a.leave_y = min(self.world.pixel_h - 24, a.y + 0.8 * TILE)   # step down past the detective...
                 a.leave_x = a.x - 14 * TILE                                    # ...then off along the water
-                a.behaviour = "stand"
             self.flags.add("daniel_left")
+        if stage.get("walk_to_player"):
+            a = self._actor(self.ids.get(stage["walk_to_player"], stage["walk_to_player"]))
+            if a is not None:
+                self._send_to_player(a)
+
+    def give(self, g):
+        if g in self.flags:
+            return
+        self.flags.add(g)
+        name, desc, icon = S.ITEMS[g]
+        it = self.Item(g, name, desc, self.icons[icon])
+        if g in VIEW_ITEMS:
+            it.use = (lambda v=VIEW_ITEMS[g]: self.open_view(v))
+        self.pocket.add(it)
+        if g == "daniel_number":
+            nb = self.pocket.notebook
+            if S.DANIEL_NUMBER not in "".join(nb.pages):
+                note = f"Daniel Shaw (journalist) - {S.DANIEL_NUMBER}. Knew John Harper. Said look at the arcade."
+                nb.page = len(nb.pages) - 1
+                nb.type(("\n" if nb.pages[nb.page].strip() else "") + note)
+                nb.save()
+            self.got.append(["+ Daniel's number (in your pocket and your notebook)", 3.5])
+        else:
+            self.got.append([f"+ {name} (in your pocket)", 3.0])
+
+    def _cafe_seed(self):
+        if self.emily_cafe:
+            dx, dy = self.emily_cafe[1]["door"]
+            return dx * 31 + dy * 17
+        return 7
+
+    # ---- people walking over / away
+    def _send_to_player(self, a):
+        w = self.world
+        tx, ty = int(self.player.pos.x // TILE), int(self.player.pos.y // TILE)
+        blocked = {(int(o.x // TILE), int(o.y // TILE)) for o in w.actors if o is not a}
+        goals = [(tx + dx, ty + dy) for dx, dy in ((0, 1), (1, 0), (-1, 0), (0, -1))
+                 if 0 <= tx + dx < w.w and 0 <= ty + dy < w.h and (tx + dx, ty + dy) not in blocked]
+        a.behaviour = "script"; a.talking = False
+        self.walkers.append([a, self.compass.bfs(w, tuple(goals), blocked)])
+
+    def _walk_people(self, dt, world):
+        for a in list(world.actors):                                  # Daniel walking off along the water
+            if getattr(a, "leaving", False):
+                a.talking = False; a.moving = True; a.t += dt
+                if a.y < a.leave_y:
+                    a.y = min(a.leave_y, a.y + 60 * dt); a.d = "down"
+                else:
+                    a.x -= 72 * dt; a.d = "left"
+                if a.x < a.leave_x:
+                    world.actors.remove(a)
+        for entry in list(self.walkers):
+            a, dist = entry
+            if a not in world.actors:
+                self.walkers.remove(entry); continue
+            cx, cy = int(a.x // TILE), int(a.y // TILE)
+            INF = 1 << 30
+            if not (0 <= cx < world.w and 0 <= cy < world.h) or dist[cy][cx] >= INF:
+                self._arrive(a, snap=True); continue
+            if dist[cy][cx] == 0:
+                wx, wy = (cx + 0.5) * TILE, (cy + 0.5) * TILE + 12
+            else:
+                nxt = self.compass.next_tile(world, dist, cx, cy)
+                if nxt is None:
+                    self._arrive(a, snap=True); continue
+                wx, wy = (nxt[0] + 0.5) * TILE, (nxt[1] + 0.5) * TILE + 12
+            dx, dy = wx - a.x, wy - a.y
+            d = math.hypot(dx, dy)
+            if dist[cy][cx] == 0 and d < 4:
+                self._arrive(a); continue
+            k = min(1.0, 110 * dt / max(d, 0.01))
+            a.x += dx * k; a.y += dy * k
+            a.moving = True; a.t += dt
+            a.d = ("right" if dx > 0 else "left") if abs(dx) > abs(dy) else ("down" if dy > 0 else "up")
+
+    def _arrive(self, a, snap=False):
+        for entry in list(self.walkers):
+            if entry[0] is a:
+                self.walkers.remove(entry)
+        if snap:                                                        # straight to the detective's side
+            w = self.world
+            tx, ty = int(self.player.pos.x // TILE), int(self.player.pos.y // TILE)
+            for dx, dy in ((0, 1), (1, 0), (-1, 0), (0, -1)):
+                x, y = tx + dx, ty + dy
+                r = pygame.Rect(x * TILE + 20, y * TILE + 26, 24, 24)
+                if 0 <= x < w.w and 0 <= y < w.h and not any(r.colliderect(s) for s in w.nearby_solids(r, actors=False)):
+                    a.x, a.y = (x + 0.5) * TILE, (y + 0.5) * TILE + 12
+                    break
+        a.moving = False
+        self._face_each_other(a)
+
+    def _face_each_other(self, a):
+        dx, dy = a.x - self.player.pos.x, a.y - self.player.pos.y
+        self.player.direction = ("right" if dx > 0 else "left") if abs(dx) > abs(dy) else ("down" if dy > 0 else "up")
+        if getattr(a, "pose", "stand") not in ("sit", "lie", "work"):
+            a.d = ("left" if dx > 0 else "right") if abs(dx) > abs(dy) else ("up" if dy > 0 else "down")
+        a.talking = True
 
     def face_player(self, aid):
         """Turn the detective (and whoever they're talking to) to face each other."""
-        a = self._actor(aid)
-        if a is None or self.player is None:
-            return
-        dx, dy = a.x - self.player.pos.x, a.y - self.player.pos.y
-        self.player.direction = ("right" if dx > 0 else "left") if abs(dx) > abs(dy) else ("down" if dy > 0 else "up")
-        a.d = ("left" if dx > 0 else "right") if abs(dx) > abs(dy) else ("up" if dy > 0 else "down")
-        a.talking = True
+        a = self._actor(self.ids.get(aid, aid))
+        if a is not None and self.player is not None:
+            self._face_each_other(a)
+
+    def route(self, gx, gy):
+        """Steps to (gx, gy) from every tile, going round walls AND the people standing about."""
+        w = self.world
+        blocked = {(int(a.x // TILE), int(a.y // TILE)) for a in w.actors} - {(gx, gy)}
+        return self.compass.bfs(w, ((gx, gy),), blocked)
 
     def snap_player(self, pos):
         self.player.pos.update(pos); self.player.prev_pos.update(pos)
@@ -519,25 +905,14 @@ class Story:
     def keys(self, player):
         return self.cutscene.keys(player) if self.cutscene else ScriptKeys()
 
-    # ---- buying the paper
-    def can_buy_paper(self, world, place, player):
-        if "newspaper" in self.flags or world.interior is None or world.interior.get("kind") != "corner":
-            return False
-        for a in world.actors:                                  # standing by the shopkeeper / the counter
-            if a.id.endswith("staff") and math.hypot(player.pos.x - a.x, player.pos.y - a.y) < 2.2 * TILE:
-                return True
-        tx, ty = int(player.pos.x // TILE), int(player.pos.y // TILE)
-        return any(world.at(tx + dx, ty + dy, " ") in "XQ" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+    # ---- documents
+    def open_view(self, view):
+        self.reading = view
 
-    def buy_paper(self, world):
-        for a in world.actors:
-            if a.id.endswith("staff"):
-                a.talking = True
-                SPEAKERS["Shopkeeper"] = (SPEAKERS["Shopkeeper"][0], a.id)
-        self.start(NEWSPAPER_BUY)
-
-    def open_paper(self):
-        self.reading_paper = True
+    def photo(self, sid):
+        if sid not in self.photos:
+            self.photos[sid] = echo.snapshot(sid, self.hooks["make_world"], self.hooks["render"], self.player, (960, 640))
+        return self.photos[sid]
 
     # ---- input
     def handle(self, ev):
@@ -546,12 +921,13 @@ class Story:
             return "quit"
         advance = (ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1) or \
                   (ev.type == pygame.KEYDOWN and ev.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN))
-        if self.reading_paper:
-            if advance or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
-                self.reading_paper = False
+        if self.cutscene:
+            if advance:
+                self.cutscene.advance()
             return None
-        if self.cutscene and advance:
-            self.cutscene.advance()
+        if self.reading is not None:
+            if advance or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
+                self.reading = None
         return None
 
     # ================================================================ drawing
@@ -569,21 +945,79 @@ class Story:
     def draw(self, screen, view_offset):
         f = self._fonts_()
         w, h = screen.get_size()
+        offset = view_offset
+        if self.scene is not None:
+            self.scene.draw(screen)
+            offset = None
+        if self.black:
+            screen.fill((0, 0, 0))
+        if self.live_glitch > 0 and self.scene is None:
+            echo.glitch(screen, self.rng)
+        if self.view is not None and self.cutscene:
+            self._draw_doc(screen, self.view, w, h, lift=60)
         if self.cutscene:
-            self._draw_cutscene(screen, f, w, h, view_offset)
-        elif self.objective() and self.compass.steps is not None:
-            self._draw_compass(screen, f, w)
-        if self.toasts and not self.busy:
-            t = f["label"].render(self.toasts[0][0], True, (250, 236, 200))
-            a = min(1.0, self.toasts[0][1] / 0.6)
-            box = pygame.Surface((t.get_width() + 28, t.get_height() + 14), pygame.SRCALPHA)
-            box.fill((20, 22, 32, int(220 * a)))
-            pygame.draw.rect(box, (200, 170, 90, int(255 * a)), box.get_rect(), 2)
+            self._draw_cutscene(screen, f, w, h, offset)
+        elif self.reading is None and self.fade <= 0:
+            if self.objective() and self.compass.steps is not None:
+                self._draw_compass(screen, f, w)
+            elif self.objective():
+                self._draw_label(screen, f, w, 40)
+            if self.hint:
+                self._draw_hint(screen, f, w)
+            if self.toasts:
+                t = f["label"].render(self.toasts[0][0], True, (250, 236, 200))
+                a = min(1.0, self.toasts[0][1] / 0.6)
+                box = pygame.Surface((t.get_width() + 28, t.get_height() + 14), pygame.SRCALPHA)
+                box.fill((20, 22, 32, int(220 * a)))
+                pygame.draw.rect(box, (200, 170, 90, int(255 * a)), box.get_rect(), 2)
+                t.set_alpha(int(255 * a))
+                box.blit(t, (14, 7))
+                screen.blit(box, (w // 2 - box.get_width() // 2, 168))
+        if self.got:                                         # "+ Arcade token" in the top right corner
+            t = f["label"].render(self.got[0][0], True, (30, 24, 10))
+            a = min(1.0, self.got[0][1] / 0.4)
+            box = pygame.Surface((t.get_width() + 24, t.get_height() + 12), pygame.SRCALPHA)
+            box.fill((250, 214, 90, int(235 * a)))
             t.set_alpha(int(255 * a))
-            box.blit(t, (14, 7))
-            screen.blit(box, (w // 2 - box.get_width() // 2, 168))
-        if self.reading_paper:
-            self._draw_paper(screen, w, h)
+            box.blit(t, (12, 6))
+            screen.blit(box, (w - box.get_width() - 16, 76 if self.cutscene else 110))
+        if self.reading is not None:
+            self._draw_doc(screen, self.reading, w, h)
+            m = f["small"].render("click (or Esc) to put it away", True, (220, 216, 200))
+            screen.blit(m, (w // 2 - m.get_width() // 2, h - 24))
+        if self.fade > 0:
+            a = min(1.0, (2.0 - self.fade) / 0.6) if self.fade > 1.0 else min(1.0, self.fade / 0.6)
+            dark = pygame.Surface((w, h)); dark.fill((0, 0, 0)); dark.set_alpha(int(255 * a))
+            screen.blit(dark, (0, 0))
+
+    def _draw_doc(self, screen, view, w, h, lift=0):
+        dim = pygame.Surface((w, h), pygame.SRCALPHA); dim.fill((0, 0, 0, 170))
+        screen.blit(dim, (0, 0))
+        if lift:                               # in a cut scene: between the black bar and the dialogue box
+            doc = documents.get(view, (w, h - 170), self.photo, self.clock.hour)
+            y = 70 + max(0, (h - 240 - doc.get_height()) // 2)
+        else:
+            doc = documents.get(view, (w, h), self.photo, self.clock.hour)
+            y = max(8, h // 2 - doc.get_height() // 2)
+        screen.blit(doc, (w // 2 - doc.get_width() // 2, y))
+
+    def _draw_label(self, screen, f, w, y):
+        t1 = f["label"].render(self.label(), True, (250, 240, 214))
+        bw = t1.get_width() + 24
+        box = pygame.Surface((bw, 26), pygame.SRCALPHA)
+        box.fill((20, 22, 32, 205))
+        box.blit(t1, (12, 5))
+        screen.blit(box, (w // 2 - bw // 2, y))
+
+    def _draw_hint(self, screen, f, w):
+        t = f["label"].render(self.hint[0], True, (30, 24, 10))
+        a = min(1.0, self.hint[1] / 0.6)
+        box = pygame.Surface((t.get_width() + 32, t.get_height() + 18), pygame.SRCALPHA)
+        box.fill((250, 214, 90, int(240 * a)))
+        pygame.draw.rect(box, (120, 90, 20, int(255 * a)), box.get_rect(), 3)
+        t.set_alpha(int(255 * a))
+        box.blit(t, (16, 9))
+        screen.blit(box, (w // 2 - box.get_width() // 2, 210))
 
     def _draw_compass(self, screen, f, w):
         cx, cy, r = w // 2, 62, 25
@@ -606,10 +1040,9 @@ class Story:
         pygame.draw.polygon(dial, (60, 64, 80), [tail, (c + side[0], c + side[1]), (c - side[0], c - side[1])])
         pygame.draw.circle(dial, (196, 160, 70), (c, c), 4)
         screen.blit(dial, (cx - c, cy - c))
-        ob = self.objective()
         metres = self.compass.steps * 2.5
         dist = f"{int(metres)} m" if metres < 1000 else f"{metres / 1000:.1f} km"
-        t1 = f["label"].render(ob["label"], True, (250, 240, 214))
+        t1 = f["label"].render(self.label(), True, (250, 240, 214))
         t2 = f["small"].render(dist + " walk", True, (200, 196, 180))
         bw = max(t1.get_width(), t2.get_width()) + 24
         box = pygame.Surface((bw, 44), pygame.SRCALPHA)
@@ -623,15 +1056,19 @@ class Story:
             screen.blit(b3, (cx - b3.get_width() // 2, cy + r + 54))
 
     def _wrap(self, font, text, width):
-        words, lines, cur = text.split(), [], ""
-        for wd in words:
-            if font.size((cur + " " + wd).strip())[0] > width:
-                lines.append(cur); cur = wd
-            else:
-                cur = (cur + " " + wd).strip()
-        if cur:
-            lines.append(cur)
-        return lines
+        return documents.wrap(font, text, width)
+
+    def _who(self, who):
+        """Where the person speaking is (for the little marker over their head): (x, y) on screen, or None."""
+        if not who:
+            return None
+        if self.scene is not None:
+            a = self.scene.actors.get(who.lower())
+            if a is None or not a.shown:
+                return None
+            ox, oy = self.scene.offset
+            return a.x + ox, a.y + oy
+        return None
 
     def _draw_cutscene(self, screen, f, w, h, view_offset):
         cs = self.cutscene
@@ -646,17 +1083,22 @@ class Story:
         lines = self._wrap(font, text, bw - 48)
         bh = 40 + len(lines) * (font.get_linesize() + 2) + (26 if not narration else 10)
         bx, by = (w - bw) // 2, h - bar - bh - 14
-        ox, oy = view_offset                               # keep the box off the people talking
-        feet = [self.player.pos.y + oy] if self.player is not None else []
-        for aid in ("crime_officer", "crime_daniel"):
-            a = self._actor(aid)
-            if a is not None and getattr(a, "talking", False):
-                feet.append(a.y + oy)
-        if feet and max(feet) > by - 10:
+        # keep the box off the people talking
+        feet = []
+        if view_offset is not None:
+            ox, oy = view_offset
+            feet.append(self.player.pos.y + oy)
+            for a in self.world.actors if self.world else []:
+                if getattr(a, "talking", False):
+                    feet.append(a.y + oy)
+        elif self.scene is not None:
+            ox, oy = self.scene.offset
+            feet = [a.y + oy for a in self.scene.actors.values() if a.shown]
+        if self.view is None and not self.black and feet and max(feet) > by - 10:
             by = bar + 26
         panel = pygame.Surface((bw, bh), pygame.SRCALPHA)
         panel.fill((14, 16, 24, 236) if not narration else (24, 20, 16, 230))
-        col = SPEAKERS.get(who, ((220, 220, 220), None))[0]
+        col = S.SPEAKERS.get(who, (220, 220, 220))
         pygame.draw.rect(panel, col if not narration else (150, 130, 100), panel.get_rect(), 2)
         screen.blit(panel, (bx, by))
         yy = by + 16
@@ -674,110 +1116,26 @@ class Story:
                 x = bx + 24 if not narration else bx + (bw - font.size(ln)[0]) // 2
                 screen.blit(img, (x, yy))
             yy += font.get_linesize() + 2
-        if cs.shown >= len(text) and (int(cs.t * 2) % 2 == 0):
+        if cs.shown >= len(text) and cs.auto is None and (int(cs.t * 2) % 2 == 0):
             more = "click to continue >" if cs.i < len(cs.lines) - 1 else "click to finish >"
             m = f["small"].render(more, True, (190, 186, 170))
             screen.blit(m, (bx + bw - m.get_width() - 14, by + bh - m.get_height() - 8))
         # a little marker over whoever's speaking
-        tgt = SPEAKERS.get(who, (None, None))[1]
-        if tgt:
+        pos = None
+        if self.scene is not None:
+            pos = self._who(who)
+        elif view_offset is not None and who and self.view is None and not self.black:
             ox, oy = view_offset
-            if tgt == "player":
-                px, py = self.player.pos.x, self.player.pos.y
+            if who == "Detective":
+                pos = (self.player.pos.x + ox, self.player.pos.y + oy)
             else:
-                a = self._actor(tgt)
-                px, py = (a.x, a.y) if a else (None, None)
-            if px is not None:
-                sx, sy = int(px + ox), int(py + oy - 112 + 4 * math.sin(cs.t * 5))
-                pygame.draw.polygon(screen, (20, 20, 24), [(sx - 9, sy - 2), (sx + 9, sy - 2), (sx, sy + 10)])
-                pygame.draw.polygon(screen, col, [(sx - 7, sy), (sx + 7, sy), (sx, sy + 8)])
-
-    # ---- the newspaper, full screen
-    def _paper(self, w, h):
-        if self.paper_img is not None and self.paper_img.get_size() == (min(980, w - 60), min(680, h - 40)):
-            return self.paper_img
-        W, H = min(980, w - 60), min(680, h - 40)
-        s = pygame.Surface((W, H))
-        s.fill((238, 232, 214))
-        ink = (28, 26, 24)
-        serif = lambda n, b=False, i=False: pygame.font.SysFont("georgia,times new roman,serif", n, bold=b, italic=i)
-        mast = serif(48, True).render(PAPER["masthead"], True, ink)
-        s.blit(mast, (W // 2 - mast.get_width() // 2, 14))
-        pygame.draw.line(s, ink, (24, 74), (W - 24, 74), 3)
-        dl = serif(15).render(PAPER["dateline"], True, ink)
-        pr = serif(15).render(PAPER["price"], True, ink)
-        s.blit(dl, (26, 80)); s.blit(pr, (W - 26 - pr.get_width(), 80))
-        pygame.draw.line(s, ink, (24, 102), (W - 24, 102), 1)
-        kk = serif(17, True).render(PAPER["kicker"], True, (150, 30, 30))
-        s.blit(kk, (26, 112))
-        hfont = serif(64, True)
-        hl = hfont.render(PAPER["headline"], True, ink)
-        if hl.get_width() > W - 48:
-            hl = pygame.transform.smoothscale(hl, (W - 48, int(hl.get_height() * (W - 48) / hl.get_width())))
-        s.blit(hl, (24, 134))
-        y = 134 + hl.get_height() + 4
-        sf = serif(26, False, True).render(PAPER["standfirst"], True, (60, 56, 52))
-        s.blit(sf, (26, y)); y += sf.get_height() + 10
-        pygame.draw.line(s, ink, (24, y), (W - 24, y), 1); y += 10
-        # the photo: the scene on the decks, in newsprint grey
-        pw, ph = int(W * 0.42), int((H - y - 30) * 0.62)
-        photo = pygame.Surface((pw, ph))
-        photo.fill((120, 124, 128))
-        for k in range(0, ph, 6):                                  # the water
-            pygame.draw.line(photo, (98 + (k * 7) % 20, 102 + (k * 7) % 20, 106 + (k * 7) % 20), (0, k), (pw, k), 3)
-        deck = int(pw * 0.42)
-        pygame.draw.rect(photo, (160, 156, 148), (0, 0, deck, ph))
-        for k in range(0, ph, 10):
-            pygame.draw.line(photo, (130, 126, 118), (0, k), (deck, k), 1)
-        ty_ = int(ph * 0.3)
-        pygame.draw.line(photo, (230, 230, 230), (0, ty_), (pw, ty_ - 8), 3)          # the tape
-        for k in range(0, pw, 14):
-            pygame.draw.line(photo, (60, 60, 60), (k, ty_ - k * 8 // pw), (k + 6, ty_ - (k + 6) * 8 // pw), 3)
-        for px_ in (int(pw * 0.1), int(pw * 0.55)):
-            pygame.draw.line(photo, (40, 40, 40), (px_, ty_ - 6), (px_, ty_ + 40), 3)
-        for fx, fy in ((int(pw * 0.25), int(ph * 0.62)), (int(pw * 0.33), int(ph * 0.58))):   # figures
-            pygame.draw.rect(photo, (230, 230, 230), (fx - 6, fy - 26, 12, 26))
-            pygame.draw.circle(photo, (230, 230, 230), (fx, fy - 30), 6)
-        pygame.draw.rect(photo, (210, 210, 210), (int(pw * 0.05), int(ph * 0.42), int(pw * 0.18), int(ph * 0.22)))   # tent
-        for yy in range(0, ph, 3):                                 # halftone-ish
-            for xx in range((yy // 3) % 2 * 2, pw, 4):
-                c = photo.get_at((xx, yy))
-                photo.set_at((xx, yy), (max(0, c.r - 22), max(0, c.g - 22), max(0, c.b - 22)))
-        pygame.draw.rect(photo, ink, photo.get_rect(), 2)
-        s.blit(photo, (26, y))
-        cap = serif(13, False, True)
-        cy_ = y + ph + 4
-        for ln in self._wrap(cap, PAPER["caption"], pw):
-            s.blit(cap.render(ln, True, (60, 56, 52)), (26, cy_)); cy_ += 16
-        # the story, in two columns beside the photo, then across the bottom
-        body = serif(16)
-        by_ = serif(14, True).render(PAPER["byline"], True, ink)
-        colx = 26 + pw + 22
-        s.blit(by_, (colx, y)); yy = y + 22
-        colw = W - colx - 26
-        paras = [self._wrap(body, p_, colw) for p_ in PAPER["body"]]
-        x0, maxy = colx, H - 70
-        for lines in paras:
-            for ln in lines:
-                if yy > maxy:
-                    break
-                s.blit(body.render(ln, True, ink), (x0, yy)); yy += 20
-            yy += 6
-        pygame.draw.line(s, ink, (24, H - 56), (W - 24, H - 56), 1)
-        ins = serif(14, True).render("INSIDE:", True, (150, 30, 30))
-        s.blit(ins, (26, H - 46))
-        xx = 26 + ins.get_width() + 10
-        for item in PAPER["inside"]:
-            t = serif(14).render(item, True, ink)
-            s.blit(t, (xx, H - 46)); xx += t.get_width() + 24
-        hint = serif(13, False, True).render("click to put the paper away", True, (90, 86, 80))
-        s.blit(hint, (W - 26 - hint.get_width(), H - 24))
-        pygame.draw.rect(s, (180, 172, 150), s.get_rect(), 3)
-        self.paper_img = s
-        return s
-
-    def _draw_paper(self, screen, w, h):
-        dim = pygame.Surface((w, h), pygame.SRCALPHA); dim.fill((0, 0, 0, 170))
-        screen.blit(dim, (0, 0))
-        p = self._paper(w, h)
-        screen.blit(p, (w // 2 - p.get_width() // 2, h // 2 - p.get_height() // 2))
+                aid = {"Police Officer": "crime_officer", "Daniel": "crime_daniel"}.get(who)
+                a = self._actor(aid) if aid else None
+                if a is None:
+                    a = self._actor(self.ids.get(who.lower(), "")) or (self._actor("daniel") if who == "Daniel" else None)
+                if a is not None:
+                    pos = (a.x + ox, a.y + oy)
+        if pos is not None and not self.black and self.view is None:
+            sx, sy = int(pos[0]), int(pos[1] - 112 + 4 * math.sin(cs.t * 5))
+            pygame.draw.polygon(screen, (20, 20, 24), [(sx - 9, sy - 2), (sx + 9, sy - 2), (sx, sy + 10)])
+            pygame.draw.polygon(screen, col, [(sx - 7, sy), (sx + 7, sy), (sx, sy + 8)])

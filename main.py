@@ -160,7 +160,11 @@ if harbourside_map is not None:
     PLACES["Harbourside"] = harbourside_map
 MAPS.append(("Queens Road", queens_road_map) if queens_road_map is not None else ("Queens Road (simple)", QUEENS_ROAD))
 
-OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx")
+OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1234" "mjx" "056789<>?[]{}")
+STORY_PROPS = "056789<>?[]{}"     # the story's rooms (see INTERIORS): 5 records shelf  6 lockers  7 boxes  8 desk (9 = its
+                                  # right half)  0 bookcase  [ filing cabinet  { office chair  < sofa (> = right half)
+                                  # ? side table with the phone  ] armchair  } floor lamp
+RECORD_YEARS = [("1994", "1995"), ("1996", "1997"), ("1998", None), ("2000", "2001")]   # the arcade's staff records
 
 # ============================================================== shop interiors
 # Each shop you can walk into gets one of these rooms. Characters:
@@ -172,11 +176,62 @@ OBJECT_CHARS = set("TbRsCBSKhrP#HVWLnqFvuokY" "QXMZIJAGOUNDpgyE " "|t^!$%@*&" "1
 #   arcade:  a carpet   1 MVB Kombat   2 Seagull Bird   3 Hoop Shot   4 Invaders   (machines: walk up, press E)
 SHOP_NAMES = {"cafe": "Café", "corner": "Corner Shop", "clothes": "Clothes Shop", "books": "Bookshop",
               "barber": "Barber", "gym": "Gym", "kebab": "Kebab Shop", "club": "Nightclub", "arcade": "Arcade",
-              "zaza": "Restaurant"}
+              "zaza": "Restaurant", "usher": "Professor Usher's Office", "gazette": "Newspaper Office", "home": "Home"}
 ZAZA_CHARS = "SxBKbhTPFWV"     # Za Za Bazaar: S station (4 wide, x = the rest), B bar, K back bar, b booth (2 wide, h = rest),
                                # T table for four, P pillar, F drinks station (2 wide), W / V toilets; i = polished concrete
 ARCADE_MACHINES = {"1": "kombat", "2": "seagull", "3": "hoops", "4": "invaders"}
 INTERIORS = {
+    # Professor Usher's office in the Wills Memorial Building: oak bookcases, filing cabinets, his desk, a rug
+    "usher": [
+        "############",
+        "#0000[[0000#",
+        "#__________#",
+        "#___{______#",
+        "#__89___y__#",
+        "#__________#",
+        "#________]_#",
+        "#__________#",
+        "#g________g#",
+        "#####E######",
+    ],
+    # ...and the same office once he's packed up to run: boxes, half-empty shelves, papers on the floor
+    "usher_packed": [
+        "############",
+        "#0000[[0000#",
+        "#__7_______#",
+        "#___{___7__#",
+        "#__89______#",
+        "#_____7____#",
+        "#________]_#",
+        "#_7________#",
+        "#g_____77_g#",
+        "#####E######",
+    ],
+    # The Gazette's newsroom, where Daniel works
+    "gazette": [
+        "############",
+        "#00[[g00[[0#",
+        "#w{wwww{www#",
+        "#w89www89ww#",
+        "#wwwwwwwwww#",
+        "#w{wwww{www#",
+        "#w89www89ww#",
+        "#wwwwwwwwww#",
+        "#gwwwwwwwwg#",
+        "#####E######",
+    ],
+    # The detective's flat (only seen in the opening scene)
+    "home": [
+        "############",
+        "#00___[_g__#",
+        "#__________#",
+        "#_<>__?____#",
+        "#__________#",
+        "#____y_____#",
+        "#}_______]_#",
+        "#__________#",
+        "#####E######",
+    ],
     # Za Za Bazaar, laid out like the map they hand you at the door: the bar along the back wall, the six food
     # stations in a row in front of it (desserts, salads, far east, tex mex, european, indian), the drinks station
     # by the salads, toilets top right, the way in bottom left, and the dining hall with booths, tables for four and
@@ -204,16 +259,16 @@ INTERIORS = {
         "#giiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiig#",
         "###E################################",
     ],
-    "arcade": [
-        "##################",
-        "#1a2a3a4aa1a2a3a4#",
-        "#aaaaaaaaaaaaaaaa#",
-        "#aaaaaaaaaaaaaaaa#",
-        "#a4a3a2a1aaaaapaa#",
-        "#aaaaaaaaaaaQXQQa#",
-        "#aaaaaaaaaaaaaaaa#",
-        "#gaaaaaaaaaaaaaag#",
-        "########E#########",
+    "arcade": [                      # the arcade, and the old store room through the gap on the right
+        "########################",
+        "#1a2a3a4aa1a2a3a4#55557#",
+        "#aaaaaaaaaaaaaaaa#iiiii#",
+        "#aaaaaaaaaaaaaaaa#iiiii#",
+        "#a4a3a2a1aaaaapaaiiii66#",
+        "#aaaaaaaaaaaQXQQa#iiiii#",
+        "#aaaaaaaaaaaaaaaa#7iii7#",
+        "#gaaaaaaaaaaaaaag#77ii7#",
+        "########E###############",
     ],
     "club": [
         "############",
@@ -1037,7 +1092,7 @@ class Sprite:
 
 
 class World:
-    def __init__(self, map_def, sheet=None, interior=None, hour=12.0):
+    def __init__(self, map_def, sheet=None, interior=None, hour=12.0, past=False):
         self.real = None                              # OpenStreetMap data for real streets
         self._map_def = map_def
         self.shapes = [] if isinstance(map_def, str) else list(getattr(map_def, "GROUND_SHAPES", []))
@@ -1092,8 +1147,15 @@ class World:
         self._build()
         if self.interior is not None and self.interior["kind"] == "zaza":
             self._zaza_finish()
-        if not isinstance(map_def, str) and getattr(map_def, "CRIME_SCENE", None):
+        if not isinstance(map_def, str) and getattr(map_def, "CRIME_SCENE", None) and not past:
             self._crime_scene(map_def.CRIME_SCENE)
+        if (self.interior or {}).get("variant") == "packed":          # papers all over the floor
+            prng = random.Random(5)
+            for y in range(1, self.h - 1):
+                for x in range(1, self.w - 1):
+                    if self.grid[y][x] == "_" and prng.random() < 0.13:
+                        self.decals.append((self.real_cache.setdefault(("papers", (x + y) % 4), pa.papers_decal((x + y) % 4)),
+                                            (x * TILE, y * TILE)))
 
         if not isinstance(map_def, str):
             for orn in getattr(map_def, "ORNAMENTS", []):
@@ -1338,6 +1400,8 @@ class World:
                     self.cabinets.append((pygame.Rect(cx - 60, foot - 6, 120, 60), machine))
                 elif ch in "QXMZIJAGOUNDpgy@*":
                     self._interior_prop(ch, x, y, cx, cy, tile_rect)
+                elif ch in STORY_PROPS:
+                    self._story_prop(ch, x, y, cx, cy, tile_rect)
                 elif ch == "P":
                     self.spawn = (cx, cy)
                 elif ch == "T":
@@ -1628,7 +1692,8 @@ class World:
         key = (ch, x if ch in "QX" else 0)
         cache = self.real_cache
         if ch == "y":
-            img = cache.setdefault(("rug", seed), pa.rug(INTERIOR_WALLS[seed % len(INTERIOR_WALLS)][::-1]))
+            rug_col = {"usher": (120, 36, 40), "home": (54, 70, 110)}.get(kind, INTERIOR_WALLS[seed % len(INTERIOR_WALLS)][::-1])
+            img = cache.setdefault(("rug", seed, kind), pa.rug(rug_col))
             self.decals.append((img, (x * TILE, y * TILE)))
             return
         if ch == "p" and self.interior is not None:        # staff are NPCs now (people.py)
@@ -1682,6 +1747,59 @@ class World:
         self.solids.append(base)
         if ch not in "QXMZO":
             self._shadow(cx, foot - 4, img.get_width(), 14)
+
+    def _story_prop(self, ch, x, y, cx, cy, tile_rect):
+        """Furniture in the story's rooms: the store room, the offices, the detective's flat."""
+        cache = self.real_cache
+        variant = (self.interior or {}).get("variant")
+        foot = tile_rect.bottom - 2
+        wide = False
+        if ch == "9" or ch == ">":                          # right halves of the desk / sofa: just solid
+            self.solids.append(pygame.Rect(x * TILE, y * TILE + 10, TILE, TILE - 14))
+            return
+        if ch == "5":
+            first = x
+            while self.at(first - 1, y, " ") == "5":
+                first -= 1
+            labels = RECORD_YEARS[min(x - first, len(RECORD_YEARS) - 1)]
+            img = cache.setdefault(("records", labels), pa.records_shelf(labels))
+        elif ch == "6":
+            tag = self.at(x - 1, y, " ") != "6"            # John's is the first one
+            img = cache.setdefault(("locker", tag), pa.locker(tag))
+        elif ch == "7":
+            img = cache.setdefault(("boxes", x + y, variant == "packed"), pa.boxes(x * 3 + y, variant == "packed" and (x + y) % 2 == 0))
+        elif ch == "8":
+            kind = "packed" if variant == "packed" else self.interior["kind"]
+            img = cache.setdefault(("desk", kind, x + y), pa.desk(kind, x * 7 + y))
+            wide = True
+        elif ch == "0":
+            img = cache.setdefault(("bookcase", x % 5, variant == "packed"), pa.bookcase(x * 5 + 1, variant == "packed"))
+        elif ch == "[":
+            img = cache.setdefault(("filing", variant == "packed" and x % 2 == 0), pa.filing_cabinet(variant == "packed" and x % 2 == 0))
+        elif ch == "{":
+            img = cache.setdefault(("ochair", self.interior["kind"]), pa.office_chair(self.interior["kind"] == "usher"))
+            self.sprites.append(Sprite(img, (cx - img.get_width() // 2, foot - 6 - img.get_height()), foot - 30))
+            return                                          # someone may sit in it: not solid, drawn behind them
+        elif ch == "<":
+            img = cache.setdefault("sofa", pa.sofa())
+            wide = True
+        elif ch == "?":
+            img = cache.setdefault(("sidetable", 0), pa.side_table(0))
+        elif ch == "]":
+            img = cache.setdefault("armchair", pa.armchair())
+        else:
+            img = cache.setdefault("floorlamp", pa.floor_lamp())
+        left = x * TILE + (TILE if wide else TILE // 2) - img.get_width() // 2
+        self.sprites.append(Sprite(img, (left, foot - img.get_height()), foot))
+        if ch in "560[":                                    # against the wall: the whole tile
+            self.solids.append(pygame.Rect(x * TILE, y * TILE + 8, TILE, TILE - 8))
+        else:
+            base = pygame.Rect(0, 0, min(img.get_width() - 8, TILE * 2), 24)
+            base.midbottom = (left + img.get_width() // 2, foot)
+            self.solids.append(base)
+            self._shadow(left + img.get_width() // 2, foot - 4, img.get_width(), 14)
+        if variant == "packed" and ch == "7":
+            pass
 
     def _shadow(self, cx, cy, w, h):
         sh = ellipse_shadow(w, h)
@@ -2359,6 +2477,32 @@ class _NoKeysT:
 _NoKeys = _NoKeysT()
 
 
+def render_scene(screen, world, centre, extra=()):
+    """Draw a world (ground, water, everything depth-sorted, no player) centred on a point - for cut scenes and
+    time echoes. extra = more Sprites to sort in (e.g. the detective in the opening scene)."""
+    w, h = screen.get_size()
+    ox, oy = round(w / 2 - centre[0]), round(h / 2 - centre[1])
+    ox = min(0, max(w - world.pixel_w, ox)) if world.pixel_w >= w else (w - world.pixel_w) // 2
+    oy = min(0, max(h - world.pixel_h, oy)) if world.pixel_h >= h else (h - world.pixel_h) // 2
+    view = pygame.Rect(-ox, -oy, w, h)
+    chunk_px = TILE * CHUNK_TILES
+    screen.fill((0, 0, 0))
+    for cy in range(max(0, view.top // chunk_px), min(world.h * TILE - 1, view.bottom) // chunk_px + 1):
+        for cx in range(max(0, view.left // chunk_px), min(world.w * TILE - 1, view.right) // chunk_px + 1):
+            screen.blit(world.chunk(cx, cy), (cx * chunk_px + ox, cy * chunk_px + oy))
+    world.draw_water(screen, view, ox, oy)
+    layer = list(world.visible_sprites(view.inflate(0, (pa.TOWER_H * pa.PX + TILE) * 2)))
+    layer.extend(world.dynamic_sprites(view.inflate(128, 256)))
+    layer.extend(extra)
+    layer.sort(key=lambda sp: sp.sort_y)
+    for sp in layer:
+        img = sp.image
+        if img is None:
+            img = sp.image = sp.make()
+        screen.blit(img, (sp.pos[0] + ox, sp.pos[1] + oy))
+    return ox, oy
+
+
 # TEMPORARY (for testing): jump straight to the stairs instead of walking there. Delete when done.
 DEV_TELEPORTS = {
     pygame.K_F5: ("Frogmore Street", (9.6, 10.4), "left"),     # bottom of the Frogmore steps
@@ -2380,7 +2524,9 @@ def main():
 
     sheet = None
     map_index = 0
-    world = World(MAPS[map_index][1], sheet, hour=daynight.GameClock(BASE_DIR / "saves").hour)
+    clock_ = daynight.GameClock(BASE_DIR / "saves")
+    clock_.hours = quest.story_start(clock_.hours)          # the story starts the next morning, every time
+    world = World(MAPS[map_index][1], sheet, hour=clock_.hour)
     player = Player(world.spawn)
     camera = Camera(player.pos)
     camera.update(player.pos, 1, screen.get_size(), world)
@@ -2408,10 +2554,19 @@ def main():
     fade_surf = pygame.Surface(screen.get_size()).convert(); fade_surf.fill((0, 0, 0))
     place_name = MAPS[map_index][0]
     pocket = inventory.Pocket(BASE_DIR / "saves")
-    clock_ = daynight.GameClock(BASE_DIR / "saves")
     lighting = daynight.Lighting()
     mini = minimap.MiniMap()
-    story = quest.Story(pocket, inventory.Item, {"card": pa.card_icon, "newspaper": pa.newspaper_icon})
+    def scene_world(kind, seed=7):
+        """A place or room for a cut scene / time echo, built fresh (as it was: no police tape, nobody about)."""
+        if kind[0] == "place":
+            return World(PLACES[kind[1]], sheet, hour=12.0, past=True)
+        room = "cafe" if kind[0] == "cafe" else kind[1]
+        return World("\n".join(INTERIORS[room]), sheet, interior=dict(kind=room, seed=seed), hour=12.0)
+
+    icons = {name: getattr(pa, name) for name in ("card_icon", "newspaper_icon", "recorder_icon", "token_icon", "photo_icon",
+                                                  "notes_icon", "folder_icon", "cutting_icon")}
+    story = quest.Story(pocket, inventory.Item, icons, player,
+                        dict(render=render_scene, make_world=scene_world, clock=clock_, places=PLACES))
     watch_cache = {}
     flames = [daynight.flame(i) for i in range(4)]
     last_clock_save = 0.0
@@ -2475,16 +2630,19 @@ def main():
                 talk["i"] += 1
                 if talk["i"] >= len(talk["lines"]):
                     talk["npc"].talking = False; talk = None
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and story.prompt(world, place_name, player):
+                story.interact(world, place_name, player)            # the story: a locker, a shelf, a question...
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and world.cabinet_near(player.pos) is not None:
                 machine = world.cabinet_near(player.pos)            # play the machine: it takes over the screen
-                if arcade.play(screen, clock, machine, BASE_DIR / "saves", BASE_DIR) == "quit":
+                result = arcade.play(screen, clock, machine, BASE_DIR / "saves", BASE_DIR, goal=story.arcade_goal(machine))
+                if result == "quit":
                     running = False
+                elif result == "won":
+                    story.won(machine)
                 pygame.event.clear()
                 clock.tick()
                 accumulator = 0.0
                 keys_now = pygame.key.get_pressed()
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and story.can_buy_paper(world, place_name, player):
-                story.buy_paper(world)                        # the morning paper, at the corner shop counter
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                 npc = world.npc_near((player.pos.x, player.pos.y))
                 if npc is not None:
@@ -2575,8 +2733,10 @@ def main():
         if entering and near_shop is not None and not door_lock and not shop_closed:
             outside.append((world, player.pos.copy(), near_shop, place_name))
             seed = near_shop["door"][0] * 31 + near_shop["door"][1] * 17
-            world = World("\n".join(INTERIORS[near_shop["kind"]]), sheet,
-                          interior=dict(kind=near_shop["kind"], seed=seed), hour=clock_.hour)
+            layout, variant = story.room(near_shop["kind"])
+            world = World("\n".join(INTERIORS[layout]), sheet,
+                          interior=dict(kind=near_shop["kind"], seed=seed, variant=variant), hour=clock_.hour)
+            story.entered(near_shop)
             place_name = _brand(near_shop.get("brand", "")) or SHOP_NAMES[near_shop["kind"]]
             if near_shop.get("brand"):
                 place_name += f" ({SHOP_NAMES[near_shop['kind']]})"
@@ -2586,6 +2746,7 @@ def main():
             ex, ey = world.exit_tile
             if player.hitbox().bottom > ey * TILE + TILE * 0.6:
                 world, pos, shop, place_name = outside.pop()
+                story.entered(None)
                 dx, dy = shop["door"]
                 if shop["side"] == "west":
                     put_player(((dx - 1) * TILE + TILE / 2 - 6, dy * TILE + TILE / 2 + 8), "left")
@@ -2699,11 +2860,11 @@ def main():
             wt = hud(f"Day {clock_.day}  {clock_.text()}" + ("  >>" if clock_.fast else ""))
             screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
         machine_here = world.cabinet_near(player.pos) if world.interior is not None else None
-        paper_here = not story.busy and not pocket.busy and talk is None and story.can_buy_paper(world, place_name, player)
+        story_tip = None if (pocket.busy or talk is not None) else story.prompt(world, place_name, player)
         if story.busy:
             pass
-        elif paper_here:
-            tip = hud("E: buy the morning paper")
+        elif story_tip:
+            tip = hud(story_tip)
             screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 96))
         elif machine_here is not None and talk is None and not pocket.busy:
             tip = hud(f"E: play {arcade.MACHINES[machine_here]['title']}")

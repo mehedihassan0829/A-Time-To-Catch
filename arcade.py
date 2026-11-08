@@ -855,14 +855,17 @@ def _to_screen_coords(pos, window_size, w, h):
     return (int((pos[0] - r.x) * w / r.w), int((pos[1] - r.y) * h / r.h))
 
 
-def play(window, clock, machine, save_dir, base_dir):
-    """Play a machine until you leave it. Returns 'quit' if the window was closed."""
+def play(window, clock, machine, save_dir, base_dir, goal=None):
+    """Play a machine until you leave it. Returns 'quit' if the window was closed.
+    goal = (score, label): a score to beat for the story (e.g. John's high score). Once a game ends with a score
+    above it, the machine shows it for a moment and play() returns 'won'."""
     if machine == "kombat":
         return play_kombat(window, clock, Path(base_dir) / "mvb_kombat")
     scores = Scores(save_dir)
     game = GAMES[machine](scores)
     canvas = pygame.Surface((GW, GH)).convert()
     pygame.key.set_repeat()
+    won_t = None
     while True:
         dt = min(clock.tick(60) / 1000, 0.05)
         for ev in pygame.event.get():
@@ -870,11 +873,29 @@ def play(window, clock, machine, save_dir, base_dir):
                 return "quit"
             if ev.type == pygame.KEYDOWN and ev.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
                 return None
+            if won_t is not None:
+                continue
             if hasattr(ev, "pos") and ev.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
                 ev = pygame.event.Event(ev.type, dict(ev.dict, pos=_to_screen_coords(ev.pos, window.get_size(), GW, GH)))
             game.event(ev)
-        game.update(dt)
+        if won_t is None:
+            game.update(dt)
         game.draw(canvas)
+        if goal:
+            score, label = goal
+            if won_t is None and getattr(game, "state", None) == "over" and game.score > score:
+                won_t = 0.0
+            if won_t is not None:
+                won_t += dt
+                r = pygame.Rect(GW // 2 - 90, GH // 2 - 22, 180, 44)
+                canvas.fill((20, 20, 30), r); pygame.draw.rect(canvas, (255, 220, 90), r, 1)
+                text(canvas, "NEW HIGH SCORE!", GW // 2, r.y + 10, (255, 220, 90), 1, centre=True)
+                text(canvas, f"YOU BEAT {label}", GW // 2, r.y + 26, (240, 240, 240), 1, centre=True)
+                if won_t > 2.2:
+                    return "won"
+            else:
+                text(canvas, f"TO BEAT: {label} {score}", GW - 4 - text_w(f"TO BEAT: {label} {score}"), 4, (255, 220, 90), 1,
+                     shadow=(20, 20, 30))
         window.fill((0, 0, 0))
         present(window, canvas, machine, game.hint)
         pygame.display.flip()

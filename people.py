@@ -866,7 +866,7 @@ WORK = {   # shop kind -> (role at the counter, pose, tool, facing)
 
 
 OPEN_HOURS = {   # when each kind of shop is open (close > 24 = after midnight)
-    "cafe": (7, 18), "kebab": (11, 27), "corner": (0, 24), "clothes": (9, 18), "books": (9, 18.5),
+    "cafe": (7, 20), "kebab": (11, 27), "corner": (0, 24), "clothes": (9, 18), "books": (9, 18.5),
     "barber": (9, 18), "gym": (6, 23), "club": (22, 27), "arcade": (10, 26), "zaza": (12, 23),
 }
 
@@ -1023,7 +1023,7 @@ def populate_interior(world, kind, seed, hour=12.0):
             x, y = 4 + k * 2, 4
             n = NPC(pid(f"latenight{k}"), x * TILE + 32, y * TILE + TILE - 10, "drunk", "stand", d="up", seed=seed + 700 + k)
             npcs.append(n)
-    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0, "arcade": 1, "zaza": 0}[kind] - (1 if late and kind != "club" else 0)):
+    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0, "arcade": 1, "zaza": 0}.get(kind, 0) - (1 if late and kind != "club" else 0)):
         free = world.free_floor
         if not free: break
         x, y = rng.choice(free)

@@ -161,6 +161,8 @@ ORNAMENTS = [{'kind': 'unicorn', 'tile': (84, 35)}, {'kind': 'unicorn', 'tile': 
 
 # shops you can walk into: building index, interior type, door tile, which side the door faces
 SHOPS = [
+    # the Wills Memorial Building's front door (Professor Usher's office is inside)
+    {'building': 62, 'kind': 'usher', 'door': (11, 18), 'side': 'south', 'brand': 'WILLS MEMORIAL BUILDING', 'centre': 11.5},
     {'building': 70, 'kind': 'cafe', 'door': (35, 19), 'side': 'south', 'brand': 'SLOW DRIP', 'centre': 35.5},
     {'building': 71, 'kind': 'clothes', 'door': (38, 19), 'side': 'south', 'brand': 'SOLE MATES', 'centre': 38.5},
     {'building': 72, 'kind': 'cafe', 'door': (41, 19), 'side': 'south', 'brand': 'FIKA', 'centre': 41.5},
@@ -175,7 +177,7 @@ SHOPS = [
     {'building': 33, 'kind': 'clothes', 'door': (98, 19), 'side': 'south', 'brand': 'DENIM DEN', 'centre': 98.5},
     {'building': 35, 'kind': 'clothes', 'door': (109, 19), 'side': 'south', 'brand': 'CUT LOOSE', 'centre': 109.5},
     {'building': 37, 'kind': 'clothes', 'door': (118, 19), 'side': 'south', 'brand': 'URBAN THREADS', 'centre': 118.5},
-    {'building': 38, 'kind': 'clothes', 'door': (122, 19), 'side': 'south', 'brand': 'KNIT WIT', 'centre': 122.5},
+    {'building': 38, 'kind': 'gazette', 'door': (122, 19), 'side': 'south', 'brand': 'THE GAZETTE', 'centre': 122.5},
     {'building': 40, 'kind': 'clothes', 'door': (128, 19), 'side': 'south', 'brand': 'WOOL & WILLOW', 'centre': 129.0},
     {'building': 41, 'kind': 'cafe', 'door': (132, 19), 'side': 'south', 'brand': 'BEAN THERE', 'centre': 132.5},
     {'building': 43, 'kind': 'cafe', 'door': (139, 19), 'side': 'south', 'brand': 'HILLTOP COFFEE', 'centre': 140.0},
@@ -239,7 +241,7 @@ BUILDINGS = [
     {'style': 'H', 'stone': (240, 228, 196), 'roof': (92, 100, 114), 'variant': 1, 'seed': 4121, 'floors': 3, 'shop': True, 'kind': 'clothes', 'awning': (94, 32, 54), 'away': False, 'brand': {'name': 'CUT LOOSE', 'kind': 'clothes', 'bg': (60, 60, 64), 'fg': (255, 255, 255), 'style': 2}},
     {'style': 'H', 'stone': (190, 110, 84), 'roof': (84, 92, 104), 'variant': 1, 'seed': 31049, 'floors': 3, 'shop': False, 'kind': None, 'awning': None, 'away': False},
     {'style': 'H', 'stone': (220, 230, 210), 'roof': (104, 110, 120), 'variant': 1, 'seed': 61356, 'floors': 3, 'shop': True, 'kind': 'clothes', 'awning': (32, 32, 36), 'away': False, 'brand': {'name': 'URBAN THREADS', 'kind': 'clothes', 'bg': (150, 40, 40), 'fg': (255, 255, 255), 'style': 3}},
-    {'style': 'H', 'stone': (236, 222, 180), 'roof': (84, 92, 104), 'variant': 3, 'seed': 90890, 'floors': 3, 'shop': True, 'kind': 'clothes', 'awning': (120, 60, 140), 'away': False, 'brand': {'name': 'KNIT WIT', 'kind': 'clothes', 'bg': (60, 60, 64), 'fg': (250, 220, 200), 'style': 5}},
+    {'style': 'H', 'stone': (236, 222, 180), 'roof': (84, 92, 104), 'variant': 3, 'seed': 90890, 'floors': 3, 'shop': True, 'kind': 'gazette', 'awning': (30, 34, 44), 'away': False, 'brand': {'name': 'THE GAZETTE', 'kind': 'gazette', 'bg': (24, 26, 32), 'fg': (244, 238, 222), 'style': 2}},
     {'style': 'H', 'stone': (244, 240, 228), 'roof': (84, 92, 104), 'variant': 0, 'seed': 49747, 'floors': 3, 'shop': False, 'kind': None, 'awning': None, 'away': False},
     {'style': 'H', 'stone': (236, 214, 204), 'roof': (104, 110, 120), 'variant': 0, 'seed': 97331, 'floors': 2, 'shop': True, 'kind': 'clothes', 'awning': (32, 32, 36), 'away': False, 'brand': {'name': 'WOOL & WILLOW', 'kind': 'clothes', 'bg': (220, 110, 50), 'fg': (255, 255, 255), 'style': 2}},
     {'style': 'H', 'stone': (226, 208, 166), 'roof': (104, 110, 120), 'variant': 1, 'seed': 40222, 'floors': 2, 'shop': True, 'kind': 'cafe', 'awning': (32, 32, 36), 'away': False, 'brand': {'name': 'BEAN THERE', 'kind': 'cafe', 'bg': (24, 24, 28), 'fg': (244, 238, 222), 'style': 1}},
