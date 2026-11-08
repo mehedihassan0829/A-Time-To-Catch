@@ -138,7 +138,7 @@ ARCADE_HINT = "HINT: beat the high score on SEAGULL BIRD - someone might come ov
 
 MARTIN = [
     ("", "Someone from behind the counter comes over.", dict(walk_to_player="martin")),
-    ("Martin", "Not bad! That was John's high score you just beat. Nobody's touched it in months."),
+    ("Martin", "Not bad! That was John's high score you just beat. Nobody's been able to beat it in months."),
     ("Detective", "You heard about the murder? It's unfortunate, isn't it?"),
     ("Martin", "Yeah, I was the last one working with him."),
     ("Detective", "How was he acting before?"),
@@ -154,7 +154,7 @@ MARTIN = [
 LOCKER = [
     ("", "The detective opens John's locker.", dict(view="locker")),
     ("", "Inside: an old arcade token, an old photograph, and some notes.", dict(give=("token", "old_photo", "notes"))),
-    ("", "The notes are full of sources, and they all come from the same man: Professor Peter Usher, University of Bristol."),
+    ("", "The notes are a mess, but one of the research notes catches your eye with a reference in the bottom: Professor Peter Usher, University of Bristol."),
     ("Detective", "Professor Usher. His office is in the Wills Memorial Building, at the top of Park Street.",
      dict(view=None)),
 ]
