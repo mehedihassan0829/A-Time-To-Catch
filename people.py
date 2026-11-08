@@ -24,7 +24,7 @@ HAIR_STYLES = ["short", "short", "long", "long", "bun", "bald", "cap", "beanie",
 FIRST_NAMES = """Aisha Alfie Amara Amir Ana Archie Arjun Ava Ayo Bea Ben Bilal Bronwen Caleb Callum Carys Chen Chloe
 Ciaran Dai Dani Darius Dev Eddie Efe Elif Ella Emeka Erin Ezra Fatima Femi Finn Freya Gabe Gwen Hamza Hana Harvey Hiro
 Idris Imani Isla Ivy Jack Jada Jamal Jas Jess Joe Jordan Kai Kalani Karim Kasia Kemi Kofi Lena Leo Lewis Liam Lily Lola
-Luca Maddie Malik Mara Marek Maya Mehmet Mia Milo Mo Nadia Nia Niamh Nico Noor Ola Olly Omar Oscar Paddy Pia Priya Raf
+Luca Maddie Malik Mara Marek Maya Mehmet Mehedi Mia Milo Mo Nadia Nia Niamh Nico Noor Ola Olly Omar Oscar Paddy Pia Priya Raf
 Rhys Rosa Rubi Ruth Sam Sami Sana Seren Shay Sian Sol Sophie Suki Tariq Tess Theo Tom Tomasz Una Viktor Wren Yara Yusuf
 Zach Zara Zeynep Zofia Bryn Cerys Dylan Elis Gethin Lowri Owain Tegan Aled Ffion""".split()
 
