@@ -25,7 +25,7 @@ STORY_NPCS = [
     dict(
         id="dez",
         name="Dez",
-        spot=(58.5, 17),                 # Park Street Avenue, the steps alley on the north side
+        spot=(47.5, 17),                 # Park Street Avenue, the steps alley on the north side
         pose="sit", facing="down", dog=False,
         look=dict(coat="#4b5a3c", hat="#7a2e2e"),
         lines=[
@@ -41,7 +41,7 @@ STORY_NPCS = [
     dict(
         id="maggie",
         name="Maggie",
-        spot=(80.5, 16),                 # the Frogmore Street steps alley
+        spot=(59.5, 16),                 # the Frogmore Street steps alley
         pose="sleep", facing="right", dog=False,            # asleep all day...
         look=dict(coat="#5a3b5e"),
         lines=[
@@ -58,7 +58,7 @@ STORY_NPCS = [
     dict(
         id="fitz",
         name="Fitz",
-        spot=(51, 34),                   # Charlotte Street, behind the shops on the south side
+        spot=(33, 34),                   # Charlotte Street, behind the shops on the south side
         pose="sit", facing="down", dog=True,
         night_pose="sleep", night_facing="right",           # Fitz and Biscuit bed down at night
         night_lines=[["Zzz... not now... Biscuit, quiet..."]],
@@ -72,7 +72,7 @@ STORY_NPCS = [
     dict(
         id="ray",
         name="Ray",
-        spot=(89.5, 34),                 # Frog Lane, next to the bridge over Frogmore Street
+        spot=(65.5, 34),                 # Frog Lane, next to the bridge over Frogmore Street
         pose="sit", facing="right", dog=False,
         look=dict(coat="#6a4a2a"),
         lines=[

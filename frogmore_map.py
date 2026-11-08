@@ -89,7 +89,7 @@ BRIDGE_TRAFFIC = dict(lanes=[(15.9, 1), (17.9, -1)], lift=104, sort=21 * 64 + 60
 # cars on Frogmore Street (keep left: going down the screen on the right-hand lane)
 LOWER_ROAD = dict(lanes=[(13.7, 1), (11.3, -1)], y0=0, y1=34, solid=True)
 STAIRS = dict(y_light=9, y_dark=10, k_dark=0.7, rect=(5.0, 7.0, 9.0, 11.0), path=[(5.0, 9.0, 7.0, 11.0, "bottom"), (5.0, 7.0, 9.0, 9.0, "left"), (7.0, 9.0, 9.0, 11.0, "top")], mode="rise", open_top=True, depth=44)
-PORTALS = [dict(rect=(5.0, 10.6, 7.0, 11.0), dir='down', to='Park Street', spawn=(93.0, 19.6), facing='down')]
+PORTALS = [dict(rect=(5.0, 10.6, 7.0, 11.0), dir='down', to='Park Street', spawn=(69.0, 19.6), facing='down')]
 NEON = [(16.6, 1.8, 200, (255, 80, 210), 0.95), (16.4, 3.6, 130, (255, 190, 230), 0.7), (9.4, 5.3, 150, (255, 200, 140), 0.8)]
 # the fronts of the buildings that face across the road (doors, awnings, signs)
 SIDE_STRIPS = [{'kind': 'brick', 'x': 9, 'y0': 0, 'rows': 4, 'facing': 'east', 'doors': [1, 3]}, {'kind': 'restaurant', 'x': 9, 'y0': 4, 'rows': 3, 'facing': 'east', 'doors': [5], 'sign': 'VERDE'}, {'kind': 'omg', 'x': 17, 'y0': 0, 'rows': 6, 'facing': 'west', 'doors': [3]}, {'kind': 'graffiti', 'x': 19, 'y0': 6, 'rows': 6, 'facing': 'west'}, {'kind': 'graffiti', 'x': 17, 'y0': 12, 'rows': 1, 'facing': 'west'}]

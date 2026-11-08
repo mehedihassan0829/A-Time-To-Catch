@@ -1,4 +1,4 @@
-park_street_tiles_1px_per_tile.png: one pixel = one tile, 166 across x 62 down.
+park_street_tiles_1px_per_tile.png: one pixel = one tile, 142 across x 62 down.
 Paint with these exact colours (RGB) and send it back - the map can be rebuilt from it.
 
   150,160,190   #96a0be   terraces / shops / hotel

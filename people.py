@@ -70,6 +70,14 @@ def make_look(npc_id, seed, role="public", over=None):
             lk["style"] = rng.choice(["bald", "short"]); lk["glasses"] = False; lk["bag"] = None
         if role in ("dj", "bartender"):
             lk["shirt"] = (24, 24, 28); lk["jacket"] = None
+        if role == "chef":                                              # whites, a black apron, hair tucked away
+            lk["shirt"] = (244, 244, 240); lk["jacket"] = None; lk["apron"] = (30, 30, 34); lk["bag"] = None
+            lk["pants"] = (40, 40, 44); lk["glasses"] = False
+            if lk["style"] not in ("bald", "hijab"): lk["style"] = "beanie"; lk["hat"] = (244, 244, 240)
+        if role == "waiter":
+            lk["shirt"] = (24, 24, 28); lk["jacket"] = None; lk["apron"] = (150, 40, 50); lk["bag"] = None
+        if role == "stallholder":
+            lk["apron"] = rng.choice([(40, 90, 60), (120, 60, 40), (40, 60, 110), (150, 40, 50)]); lk["bag"] = None
         if role == "drunk":
             lk["shirt"] = rng.choice([(240, 240, 236), (200, 52, 52), (40, 90, 170), (230, 150, 170)]); lk["jacket"] = None
         if role == "homeless":
@@ -374,6 +382,16 @@ LINES = {
     "nightowl": [["Bit late to be wandering about, isn't it?"], ["Night shift. Don't ask."], ["Can't sleep. Never can."],
                  ["The street's different at night. Quieter. Stranger."]],
     "client": [["Don't make me laugh, he's got scissors."]],
+    "chef": [["Hot plates! Mind your hands.", "Fresh batch coming up in two minutes."], ["Try the curry. Trust me."],
+             ["Everything's cooked right here, in front of you."]],
+    "waiter": [["Table for how many?", "Grab a plate and help yourself - drinks are bottomless."],
+               ["Your server will bring the bill when you're done."], ["Can I take these plates?"]],
+    "diner": [["Third plate. Don't judge me."], ["I always start with dessert here."], ["Have you tried the sushi?"],
+              ["Bottomless drinks. Dangerous words."], ["I'm going back for the pizza."]],
+    "stallholder": [["Fresh today, all of it!", "Three for a fiver."], ["Have a taste - go on."],
+                    ["Card's fine, love."], ["Last ones, going cheap!"]],
+    "shopper": [["Just having a look."], ["They do the best bread here."], ["It's always packed at lunchtime."],
+                ["Have you seen the flower stall?"]],
 }
 
 
@@ -657,21 +675,29 @@ def populate_harbour(world, map_def):
     rng = random.Random(1873)
     npcs = []
     k = 0
-    for axis, line, a, b, count in map_def.WALKERS:
-        for _ in range(count):
+    for walker in map_def.WALKERS:
+        axis, line, a, b, count = walker[:5]
+        role = walker[5] if len(walker) > 5 else "public"
+        windows = walker[6] if len(walker) > 6 else [(7, 20), (8, 22), (10, 19), (9, 21), (19, 26)]
+        for i in range(count):
             if axis == "x":
-                n = NPC(f"hwalk{k}", rng.uniform(a + 0.5, b - 0.5) * TILE, line * TILE, "public", "walk_x",
+                n = NPC(f"hwalk{k}", rng.uniform(a + 0.5, b - 0.5) * TILE, line * TILE, role, "walk_x",
                         d=rng.choice(["left", "right"]), seed=8000 + k, speed=rng.uniform(52, 66))
                 n.x0, n.x1 = a * TILE, b * TILE
             else:
-                n = NPC(f"hwalk{k}", line * TILE + rng.uniform(-6, 6), rng.uniform(a + 0.5, b - 0.5) * TILE, "public", "walk_y",
+                n = NPC(f"hwalk{k}", line * TILE + rng.uniform(-6, 6), rng.uniform(a + 0.5, b - 0.5) * TILE, role, "walk_y",
                         d=rng.choice(["up", "down"]), seed=8000 + k, speed=rng.uniform(52, 66))
                 n.y0, n.y1 = a * TILE, b * TILE
-            n.hours = [(7, 20), (8, 22), (10, 19), (9, 21), (19, 26)][k % 5]
+            n.hours = windows[(i + k) % len(windows)]
             if rng.random() < 0.15: n.tool = "phone"
             npcs.append(n); k += 1
-    for j, (x, y, d, role, hours) in enumerate(map_def.EXTRA_PEOPLE):
-        n = NPC(f"hx{j}", x * TILE, y * TILE, role, "stand", d=d, seed=8100 + j)
+    for j, extra in enumerate(map_def.EXTRA_PEOPLE):
+        x, y, d, role, hours = extra[:5]
+        pose = extra[5] if len(extra) > 5 else "stand"
+        n = NPC(f"hx{j}", x * TILE, y * TILE, role, pose, d=d, seed=8100 + j,
+                tool=("cup" if pose == "sit" and j % 2 else None))
+        if pose == "sit":
+            n.sort_bias = 4
         n.hours = hours
         npcs.append(n)
     for y in range(world.h):                                           # benches
@@ -743,7 +769,7 @@ def populate_street(world, map_def):
                     n.hours = (6, 23.5) if k == 0 else (7, 19)
                     npcs.append(n)
     # a few people stood chatting in pairs on the pavement
-    for k, xt in enumerate((40, 76, 134)):
+    for k, xt in enumerate((40, 54, 110)):
         for side in (0, 1):
             n = NPC(f"chat{k}_{side}", (xt + side * 0.7) * TILE, 21 * TILE + 52, "public", "stand",
                     d="right" if side == 0 else "left", seed=4000 + k * 2 + side)
@@ -751,8 +777,8 @@ def populate_street(world, map_def):
             n.hours = [(10, 21), (12, 22.5), (9, 18)][k]
             npcs.append(n)
     # ---- after dark: people you'd rather not meet, and students on their way home
-    shady_spots = [(57.4, 20.6, "right"), (82.6, 20.5, "left"), (88.2, 31.4, "right"), (124.5, 31.5, "left"),
-                   (29.5, 20.5, "down"), (137.0, 39.5, "left"), (50.2, 32.5, "down"), (70.6, 32.4, "down")]
+    shady_spots = [(46.4, 20.6, "right"), (61.6, 20.5, "left"), (64.2, 31.4, "right"), (100.5, 31.5, "left"),
+                   (29.5, 20.5, "down"), (113.0, 39.5, "left"), (32.2, 32.5, "down"), (44.6, 32.4, "down")]
     for k, (sx, sy, d) in enumerate(shady_spots):
         n = NPC(f"shady{k}", sx * TILE, sy * TILE, "shady", "stand", d=d, seed=5000 + k)
         n.hours = [(21, 29), (22, 28.5), (20.5, 29.5), (23, 28), (21.5, 27), (22, 29), (20, 26), (23.5, 29.5)][k]
@@ -764,7 +790,7 @@ def populate_street(world, map_def):
         n.hours = (21.5, 28.5)
         npcs.append(n)
     for k in range(4):                                     # students heading home from a night out
-        n = NPC(f"drunk{k}", rng.uniform(10, 90) * TILE, (21 + k % 2) * TILE + 52, "drunk", "walk_x",
+        n = NPC(f"drunk{k}", rng.uniform(10, 66) * TILE, (21 + k % 2) * TILE + 52, "drunk", "walk_x",
                 d=rng.choice(["left", "right"]), seed=5200 + k, speed=40)
         n.x0, n.x1 = 2 * TILE, (W - 2) * TILE
         n.hours = (22.5 + k * 0.3, 27.5)
@@ -801,13 +827,13 @@ WORK = {   # shop kind -> (role at the counter, pose, tool, facing)
     "barber": ("barber", "work", "broom", "down"), "corner": ("shopkeeper", "stand", None, "down"),
     "clothes": ("assistant", "work", "cloth", "down"), "books": ("bookseller", "work", "book", "down"),
     "gym": ("gym", "stand", None, "down"), "club": ("bartender", "work", "cup", "down"),
-    "arcade": ("attendant", "stand", None, "down"),
+    "arcade": ("attendant", "stand", None, "down"), "zaza": ("waiter", "stand", None, "down"),
 }
 
 
 OPEN_HOURS = {   # when each kind of shop is open (close > 24 = after midnight)
     "cafe": (7, 18), "kebab": (11, 27), "corner": (0, 24), "clothes": (9, 18), "books": (9, 18.5),
-    "barber": (9, 18), "gym": (6, 23), "club": (22, 27), "arcade": (10, 26),
+    "barber": (9, 18), "gym": (6, 23), "club": (22, 27), "arcade": (10, 26), "zaza": (12, 23),
 }
 
 
@@ -824,7 +850,70 @@ def opening_text(kind):
     return f"open {fmt(a)}-{fmt(b)}"
 
 
+def zaza_busy(hour):
+    """How full Za Za Bazaar is (0-1): a lunchtime rush, a quiet afternoon, packed for dinner."""
+    h = hour % 24
+    if 12 <= h < 14.5: return 0.85
+    if 14.5 <= h < 17.5: return 0.35
+    if 17.5 <= h < 21: return 1.0
+    return 0.4
+
+
+def populate_zaza(world, seed, hour):
+    """Chefs at every station, bartenders, waiters doing the rounds, a queue at the busiest stations, and diners
+    at the tables and in the booths - how many depends on the time."""
+    rng = random.Random(seed + int(hour * 4))
+    zz = world.zaza
+    busy = zaza_busy(hour)
+    npcs = []
+    pid = lambda tag: f"zaza{seed}_{tag}"
+    for k, (x, y, name, col) in enumerate(zz["stations"]):
+        foot = (y + 1) * TILE - 2
+        c = NPC(pid(f"chef{k}"), (x + 2) * TILE + rng.randrange(-30, 30), foot - 62, "chef", "work", d="down", seed=seed + 50 + k)
+        c.anim_speed = rng.uniform(2.5, 4.0)
+        npcs.append(c)
+        for q in range(int(busy * 3 + rng.random())):                  # people queueing with their plates
+            n = NPC(pid(f"q{k}_{q}"), (x + 1 + q) * TILE + 20, foot + 34 + q * 6, "diner", "stand", d="up", seed=seed + 100 + k * 5 + q)
+            npcs.append(n)
+    if zz["bar"]:
+        xs = sorted(x for x, y in zz["bar"]); by = zz["bar"][0][1]
+        for k, x in enumerate((xs[2], xs[-3])):
+            b = NPC(pid(f"barkeep{k}"), x * TILE + 32, by * TILE - 14, "bartender", "work", d="down", tool="cup", seed=seed + 70 + k)
+            b.anim_speed = 2.2
+            npcs.append(b)
+        for k in range(int(busy * 4)):                                  # waiting at the bar
+            x = rng.choice(xs)
+            npcs.append(NPC(pid(f"bar{k}"), x * TILE + 32, (by + 1) * TILE + 30, "diner", "stand", d="up", seed=seed + 80 + k))
+    for k, (dx, foot) in enumerate(zz["drinks"]):
+        if rng.random() < busy:
+            npcs.append(NPC(pid(f"drinks{k}"), dx, foot + 30, "diner", "stand", d="up", tool="cup", seed=seed + 90 + k))
+    for k, row in enumerate((13.5, 18.5, 8.6)):                         # waiters doing the rounds
+        w = NPC(pid(f"waiter{k}"), rng.uniform(4, world.w - 5) * TILE, row * TILE, "waiter", "walk_x",
+                d=rng.choice(["left", "right"]), seed=seed + 60 + k, speed=58)
+        w.x0, w.x1 = 3 * TILE, (world.w - 4) * TILE
+        npcs.append(w)
+    tools = ["cup", "phone", None, None, "cup"]
+    for k, (cx, foot) in enumerate(zz["tables"]):                      # diners: two behind the table, two in front
+        if rng.random() > busy * 1.05:
+            continue
+        for j, (ox, oy, d) in enumerate(((-22, -56, "down"), (22, -56, "down"), (-22, 4, "up"), (22, 4, "up"))):
+            if rng.random() < 0.72:
+                n = NPC(pid(f"t{k}_{j}"), cx + ox, foot + oy, "diner", "sit", d=d, tool=rng.choice(tools), seed=seed + 200 + k * 7 + j)
+                npcs.append(n)
+    for k, (x, y) in enumerate(zz["booths"]):
+        if rng.random() > busy * 1.05:
+            continue
+        foot = (y + 1) * TILE - 2
+        for j, (ox, oy, d) in enumerate(((40, -52, "down"), (88, -52, "down"), (64, 6, "up"))):
+            if rng.random() < 0.7:
+                n = NPC(pid(f"b{k}_{j}"), x * TILE + ox, foot + oy, "diner", "sit", d=d, tool=rng.choice(tools), seed=seed + 400 + k * 7 + j)
+                npcs.append(n)
+    return npcs
+
+
 def populate_interior(world, kind, seed, hour=12.0):
+    if kind == "zaza":
+        return populate_zaza(world, seed, hour)
     rng = random.Random(seed)
     late = hour >= 20 or hour < 6
     npcs = []
@@ -900,7 +989,7 @@ def populate_interior(world, kind, seed, hour=12.0):
             x, y = 4 + k * 2, 4
             n = NPC(pid(f"latenight{k}"), x * TILE + 32, y * TILE + TILE - 10, "drunk", "stand", d="up", seed=seed + 700 + k)
             npcs.append(n)
-    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0, "arcade": 1}[kind] - (1 if late and kind != "club" else 0)):
+    for k in range({"corner": 2, "clothes": 2, "books": 2, "cafe": 1, "kebab": 1, "barber": 0, "gym": 1, "club": 0, "arcade": 1, "zaza": 0}[kind] - (1 if late and kind != "club" else 0)):
         free = world.free_floor
         if not free: break
         x, y = rng.choice(free)

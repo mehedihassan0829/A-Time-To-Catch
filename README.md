@@ -41,7 +41,9 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 
 ## The harbourside and the arcade
 
-Walk off the right-hand end of College Green to reach the harbourside: Anchor Road, the Centre and the ferry landing, the Watershed, the pontoons and boats, and the Harbour Arcade (where the aquarium was). The arcade is open 10:00 till 2:00.
+Walk off the right-hand end of College Green to reach the harbourside: Anchor Road, the market (two rows of stalls, busiest around lunchtime), the plaza with its ground fountains, Za Za Bazaar, the ferry platform, the harbourside decks and pontoons with their boats, and the Bristol Arcade (where the aquarium was). The arcade is open 10:00 till 2:00.
+
+You can walk into Za Za Bazaar (open 12:00 till 23:00). It's laid out like the map they give you at the door: the bar along the back, six food stations with their chefs (desserts, salads, far east, tex mex, european, indian), the drinks station, the toilets, and a dining hall of booths and tables under string lights. It's packed at lunch and dinner and quiet in between.
 
 Walk up to a machine and press E to play it. The game fills the screen inside the machine's frame; Esc or Backspace steps away. High scores are saved in `saves/highscores.json`.
 
@@ -66,6 +68,7 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `people.py` | NPCs: looks, jobs, routines, opening hours |
 | `story.py` | the story characters and what they say - edit this to write the plot |
 | `traffic.py` | cars, the bus and the traffic lights |
+| `minimap.py` | the mini-map in the bottom-left corner |
 | `daynight.py` | game clock, lighting and the watch |
 | `inventory.py` | the pocket and notebook |
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
