@@ -70,6 +70,18 @@ def make_look(npc_id, seed, role="public", over=None):
             lk["style"] = rng.choice(["bald", "short"]); lk["glasses"] = False; lk["bag"] = None
         if role in ("dj", "bartender"):
             lk["shirt"] = (24, 24, 28); lk["jacket"] = None
+        if role == "police":                                            # hi-vis jacket, black trousers, black cap
+            lk["jacket"] = (214, 226, 40); lk["shirt"] = (240, 240, 240); lk["pants"] = (24, 24, 28)
+            lk["shoe"] = (20, 20, 22); lk["bag"] = None; lk["glasses"] = False
+            if lk["style"] != "hijab": lk["style"] = "cap"; lk["hat"] = (22, 22, 28)
+        if role == "forensic":                                          # white paper suits, hoods up
+            lk["jacket"] = (236, 238, 242); lk["shirt"] = (236, 238, 242); lk["pants"] = (230, 232, 238)
+            lk["shoe"] = (90, 120, 200); lk["bag"] = None; lk["style"] = "hood"; lk["hat"] = (236, 238, 242)
+            lk["beard"] = False
+        if role == "journalist":
+            lk["jacket"] = (110, 84, 60); lk["shirt"] = (220, 226, 236); lk["pants"] = (52, 58, 74)
+            lk["glasses"] = True; lk["bag"] = (90, 60, 40); lk["style"] = "short"; lk["hair"] = (70, 50, 36)
+            lk["beard"] = True
         if role == "chef":                                              # whites, a black apron, hair tucked away
             lk["shirt"] = (244, 244, 240); lk["jacket"] = None; lk["apron"] = (30, 30, 34); lk["bag"] = None
             lk["pants"] = (40, 40, 44); lk["glasses"] = False
@@ -382,6 +394,9 @@ LINES = {
     "nightowl": [["Bit late to be wandering about, isn't it?"], ["Night shift. Don't ask."], ["Can't sleep. Never can."],
                  ["The street's different at night. Quieter. Stranger."]],
     "client": [["Don't make me laugh, he's got scissors."]],
+    "police": [["Sorry, I can't let you past the tape."], ["Forensics will be a while yet."]],
+    "forensic": [["Please stay behind the tape."]],
+    "journalist": [["..."]],
     "chef": [["Hot plates! Mind your hands.", "Fresh batch coming up in two minutes."], ["Try the curry. Trust me."],
              ["Everything's cooked right here, in front of you."]],
     "waiter": [["Table for how many?", "Grab a plate and help yourself - drinks are bottomless."],
@@ -700,6 +715,25 @@ def populate_harbour(world, map_def):
             n.sort_bias = 4
         n.hours = hours
         npcs.append(n)
+    cs = getattr(map_def, "CRIME_SCENE", None)
+    if cs:                                                             # the police and forensics at the scene
+        ox, oy, od = cs["officer"]
+        n = NPC("crime_officer", ox * TILE, oy * TILE, "police", "stand", d=od, seed=7310, name="Police Officer",
+                lines=[["We'll be here a while yet.", "The arcade he worked at is just up there - the pink sign."],
+                       ["If you find anything, let us know."]])
+        n.plot = True
+        npcs.append(n)
+        gx, gy, gd = cs["guard"]
+        npcs.append(NPC("crime_guard", gx * TILE, gy * TILE, "police", "stand", d=gd, seed=7320, name="PC Dunn"))
+        for k, (fx, fy, fd) in enumerate(cs["forensics"]):
+            f = NPC(f"crime_forensic{k}", fx * TILE, fy * TILE, "forensic", "work", d=fd, seed=7330 + k)
+            f.anim_speed = 1.6 + k * 0.5
+            npcs.append(f)
+        dx, dy, dd = cs["daniel"]
+        d = NPC("crime_daniel", dx * TILE, dy * TILE, "journalist", "stand", d=dd, seed=7350, name="Daniel Shaw",
+                lines=[["Let me know if you find anything."]])
+        d.plot = True
+        npcs.append(d)
     for y in range(world.h):                                           # benches
         for x in range(world.w):
             if world.grid[y][x] == "q" and rng.random() < 0.5:

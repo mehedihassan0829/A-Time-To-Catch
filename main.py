@@ -15,7 +15,12 @@ Controls:
     F3                 - show / hide FPS
     F5 / F6 / F7       - (testing) jump to the Frogmore steps / the Park Street stairwell / the arcade
     In the arcade: walk up to a machine and press E to play it (Esc or Backspace to step away)
+    Click / E / Space  - next line in a cut scene (and put the newspaper away)
     Esc                - quit
+
+The story (quest.py): you start on Park Street every time. The compass at the top of the screen points
+along the walking route to wherever you need to go next - first the crime scene at the harbourside.
+On the way you can buy the morning paper at Park Stores (E at the counter); it stays in your pocket to re-read.
 """
 
 import math
@@ -64,6 +69,7 @@ except ImportError:
     harbourside_map = None
 import arcade                          # the arcade machines and their games (arcade.py)
 import minimap                         # the mini-map in the bottom-left corner
+import quest                           # objectives, the compass, cut scenes, the newspaper (quest.py)
 
 # ============================================================== settings
 SCREEN_W, SCREEN_H = 1280, 720
@@ -1086,6 +1092,8 @@ class World:
         self._build()
         if self.interior is not None and self.interior["kind"] == "zaza":
             self._zaza_finish()
+        if not isinstance(map_def, str) and getattr(map_def, "CRIME_SCENE", None):
+            self._crime_scene(map_def.CRIME_SCENE)
 
         if not isinstance(map_def, str):
             for orn in getattr(map_def, "ORNAMENTS", []):
@@ -1549,6 +1557,41 @@ class World:
             self.sprites.append(Sprite(img, (x * TILE, ft - img.get_height()), ft))
             self.solids.append(pygame.Rect(x * TILE, tile_rect.top, TILE, 30))
             return
+
+    def _crime_scene(self, cs):
+        """Where John Harper went into the water: police tape round three sides (the fourth is the harbour),
+        a forensic tent, numbered evidence markers and the yellow appeal board."""
+        cache = self.real_cache
+        x0, y0, x1, y1 = cs["tape"]
+        post = cache.setdefault("tape_post", pa.tape_post())
+        ph = post.get_height()
+        lift = 9 * pa.PX                                    # the tape's height above the ground
+        for y in (y0, y1):                                  # the top and bottom runs
+            img = cache.setdefault(("tape_h", x1 - x0), pa.police_tape_h(x1 - x0))
+            foot = y * TILE
+            self.sprites.append(Sprite(img, (x0 * TILE, foot - lift), foot + 1))
+            self.solids.append(pygame.Rect(x0 * TILE, foot - 8, (x1 - x0) * TILE, 16))
+            for px in range(x0, x1 + 1, 2):
+                self.sprites.append(Sprite(post, (px * TILE - post.get_width() // 2, foot - ph + 4), foot + 2))
+        img = cache.setdefault(("tape_v", y1 - y0), pa.police_tape_v(y1 - y0))   # the left side
+        self.sprites.append(Sprite(img, (x0 * TILE - img.get_width() // 2, y0 * TILE - lift), y0 * TILE))
+        self.solids.append(pygame.Rect(x0 * TILE - 8, y0 * TILE, 16, (y1 - y0) * TILE))
+        for py in range(y0, y1 + 1, 2):
+            self.sprites.append(Sprite(post, (x0 * TILE - post.get_width() // 2, py * TILE - ph + 4), py * TILE + 2))
+        tx, ty = cs["tent"]
+        tent = cache.setdefault("ftent", pa.forensic_tent())
+        foot = (ty + 2) * TILE - 4
+        self.sprites.append(Sprite(tent, (tx * TILE, foot - tent.get_height()), foot))
+        self.solids.append(pygame.Rect(tx * TILE + 4, foot - 70, 2 * TILE - 8, 70))
+        self._shadow(tx * TILE + TILE, foot - 4, 2 * TILE + 8, 22)
+        for mx, my, n in cs["markers"]:
+            img = cache.setdefault(("marker", n), pa.evidence_marker(n))
+            self.sprites.append(Sprite(img, (mx * TILE - img.get_width() // 2, my * TILE - img.get_height()), my * TILE))
+        sx, sy = cs["sign"]
+        img = cache.setdefault("appeal", pa.appeal_board())
+        self.sprites.append(Sprite(img, (sx * TILE - img.get_width() // 2, sy * TILE - img.get_height()), sy * TILE))
+        self.solids.append(pygame.Rect(sx * TILE - 30, sy * TILE - 12, 60, 12))
+        self._shadow(sx * TILE, sy * TILE - 3, 70, 12)
 
     def _zaza_finish(self):
         """After the room's built: string lights between the pillars, street art on the walls, the neon sign."""
@@ -2332,7 +2375,7 @@ def main():
     except pygame.error:
         screen = pygame.display.set_mode((SCREEN_W, SCREEN_H), flags)
     pygame.display.set_caption("A Time To Catch")
-    pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.TEXTINPUT])
+    pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.TEXTINPUT, pygame.MOUSEBUTTONDOWN])
     pygame.key.stop_text_input()
 
     sheet = None
@@ -2368,6 +2411,7 @@ def main():
     clock_ = daynight.GameClock(BASE_DIR / "saves")
     lighting = daynight.Lighting()
     mini = minimap.MiniMap()
+    story = quest.Story(pocket, inventory.Item, {"card": pa.card_icon, "newspaper": pa.newspaper_icon})
     watch_cache = {}
     flames = [daynight.flame(i) for i in range(4)]
     last_clock_save = 0.0
@@ -2418,6 +2462,13 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif story.busy:                                  # a cut scene / the newspaper: click to go on
+                if talk is not None:
+                    talk["npc"].talking = False; talk = None
+                if story.handle(event) == "quit":
+                    running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pass
             elif talk is None and pocket.handle(event):
                 pass                                          # the pocket / notebook used the key
             elif event.type == pygame.KEYDOWN and event.key in (pygame.K_e, pygame.K_SPACE, pygame.K_RETURN) and talk is not None:
@@ -2432,6 +2483,8 @@ def main():
                 clock.tick()
                 accumulator = 0.0
                 keys_now = pygame.key.get_pressed()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_e and story.can_buy_paper(world, place_name, player):
+                story.buy_paper(world)                        # the morning paper, at the corner shop counter
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                 npc = world.npc_near((player.pos.x, player.pos.y))
                 if npc is not None:
@@ -2474,9 +2527,13 @@ def main():
             clock_.save(); last_clock_save = pygame.time.get_ticks() / 1000
         if pocket.busy or talk is not None:
             keys = keys_now = _NoKeys
+        if story.busy:                                       # the cut scene walks you about (or you stand still)
+            keys = story.keys(player)
+            keys_now = _NoKeys
         view_size = screen.get_size()
         pocket.update(clock.get_time() / 1000)
         world.update(min(clock.get_time() / 1000, 0.05), pygame.Rect(player.hitbox()), clock_.hour, clock_.is_night())
+        story.update(min(clock.get_time() / 1000, 0.05), world, place_name, player, PLACES)
         if talk is not None and math.hypot(talk["npc"].x - player.pos.x, talk["npc"].y - player.pos.y) > 140:
             talk["npc"].talking = False; talk = None
         while accumulator >= FIXED_DT:
@@ -2630,17 +2687,25 @@ def main():
             ambient = tuple(max(a, b) for a, b in zip(ambient, (236, 226, 206)))
         lighting.apply(screen, ambient, lit, ox, oy)
 
-        # ---- HUD
-        screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk  I pocket  N notebook  F lighter  T time  Tab character  M map"), (12, 10))
-        minute = int(clock_.hours * 60)
-        face = watch_cache.get(minute)
-        if face is None:
-            watch_cache.clear(); face = watch_cache[minute] = daynight.watch_face(clock_.hour)
-        screen.blit(face, (w - face.get_width() - 12, 8))
-        wt = hud(f"Day {clock_.day}  {clock_.text()}" + ("  >>" if clock_.fast else ""))
-        screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
+        # ---- HUD (not during a cut scene: the black bars and the dialogue have the screen)
+        if story.cutscene is None:
+            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk  I pocket  N notebook  F lighter  T time  Tab character  M map"), (12, 10))
+        if story.cutscene is None:
+            minute = int(clock_.hours * 60)
+            face = watch_cache.get(minute)
+            if face is None:
+                watch_cache.clear(); face = watch_cache[minute] = daynight.watch_face(clock_.hour)
+            screen.blit(face, (w - face.get_width() - 12, 8))
+            wt = hud(f"Day {clock_.day}  {clock_.text()}" + ("  >>" if clock_.fast else ""))
+            screen.blit(wt, (w - face.get_width() - wt.get_width() - 18, 8 + face.get_height() // 2 - wt.get_height() // 2))
         machine_here = world.cabinet_near(player.pos) if world.interior is not None else None
-        if machine_here is not None and talk is None and not pocket.busy:
+        paper_here = not story.busy and not pocket.busy and talk is None and story.can_buy_paper(world, place_name, player)
+        if story.busy:
+            pass
+        elif paper_here:
+            tip = hud("E: buy the morning paper")
+            screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 96))
+        elif machine_here is not None and talk is None and not pocket.busy:
             tip = hud(f"E: play {arcade.MACHINES[machine_here]['title']}")
             screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 96))
         elif talk is None and not pocket.busy:
@@ -2661,7 +2726,8 @@ def main():
         if world.real is not None and world.real["attribution"] and world.interior is None:
             credit = hud(world.real["attribution"])
             screen.blit(credit, (w - credit.get_width() - 10, h - credit.get_height() - 8))
-        mini.draw(screen, world, player, place_name)
+        if story.cutscene is None:
+            mini.draw(screen, world, player, place_name)
         if show_fps:
             screen.blit(hud(f"FPS {clock.get_fps():.0f}"), (12, 34))
         if talk is not None:                                  # dialogue box
@@ -2681,6 +2747,7 @@ def main():
             screen.blit(talk_font.render(line, True, (236, 238, 244)), (bx + 16, yy))
             more = "E: next" if talk["i"] < len(talk["lines"]) - 1 else "E: done"
             m = hud(more); screen.blit(m, (bx + bw_ - m.get_width() - 10, by + bh_ - m.get_height() - 8))
+        story.draw(screen, (ox, oy))
         pocket.draw(screen)
         if fade > 0:
             fade = max(0.0, fade - clock.get_time() / 1000)

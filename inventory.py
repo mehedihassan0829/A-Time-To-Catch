@@ -21,6 +21,7 @@ class Item:
     def __init__(self, item_id, name, description, icon_fn):
         self.id, self.name, self.description = item_id, name, description
         self.icon = icon_fn()
+        self.use = None              # what Enter does with it in the pocket (None = nothing)
 
 
 class Notebook:
@@ -167,6 +168,9 @@ class Pocket:
                         self.open_notebook()
                     elif self.sel < len(self.items) and self.items[self.sel].id == "lighter":
                         self.lighter_on = not self.lighter_on; self.open = False
+                    elif self.sel < len(self.items) and getattr(self.items[self.sel], "use", None):
+                        self.open = False                              # e.g. read the newspaper again
+                        self.items[self.sel].use()
                 return True
         return False
 

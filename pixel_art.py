@@ -2864,3 +2864,94 @@ def concrete_floor(v=0):
     if v % 4 == 1:
         R(s, shade(base, 0.9), 0, L - 1, L, 1)                       # a saw cut joint
     return up(s).convert()
+
+
+# ============================================================== the crime scene by the water
+def _tape_colour(i):
+    return (40, 80, 200) if (i // 2) % 2 == 0 else (245, 245, 245)
+
+
+def police_tape_h(tiles=1):
+    """Blue-and-white police tape running across the screen at waist height (no posts)."""
+    W = tiles * L
+    s = canvas(W, 4)
+    for x in range(W):
+        P(s, OUTLINE, x, 0)
+        P(s, _tape_colour(x), x, 1); P(s, shade(_tape_colour(x), 0.85), x, 2)
+        if x % 7 == 3: P(s, OUTLINE, x, 3)                             # it sags a touch between posts
+    return up(s).convert_alpha()
+
+
+def police_tape_v(tiles=1):
+    """Police tape running up the screen (seen end-on it's a thin stripy line)."""
+    H = tiles * L
+    s = canvas(3, H)
+    for y in range(H):
+        P(s, OUTLINE, 0, y); P(s, _tape_colour(y), 1, y); P(s, OUTLINE, 2, y)
+    return up(s).convert_alpha()
+
+
+def tape_post():
+    """A metal post the tape is tied to."""
+    s = canvas(4, 14)
+    R(s, OUTLINE, 1, 0, 2, 13); R(s, (150, 156, 166), 1, 1, 1, 11)
+    R(s, OUTLINE, 0, 12, 4, 2); R(s, (90, 96, 106), 0, 12, 4, 1)
+    R(s, (40, 80, 200), 0, 3, 4, 1)                                    # the knot of tape
+    return up(s).convert_alpha()
+
+
+def evidence_marker(n=1):
+    """A yellow numbered evidence tent."""
+    s = canvas(7, 7)
+    pygame.draw.polygon(s, OUTLINE, [(0, 6), (3, 0), (6, 6)])
+    pygame.draw.polygon(s, (250, 210, 40), [(1, 6), (3, 1), (5, 6)])
+    R(s, shade((250, 210, 40), 0.75), 4, 3, 1, 3)
+    s = up(s)
+    f = pygame.font.Font(None, 16)
+    t = f.render(str(n), True, OUTLINE)
+    s.blit(t, (s.get_width() // 2 - t.get_width() // 2, 11))
+    return s.convert_alpha()
+
+
+def forensic_tent():
+    """A white forensic tent (two tiles square), the front flap tied half open."""
+    W, H = 2 * L, 28
+    s = canvas(W, H)
+    white, shadow = (236, 238, 242), (196, 200, 210)
+    pygame.draw.polygon(s, OUTLINE, [(0, 10), (W // 2, 0), (W - 1, 10)])
+    pygame.draw.polygon(s, white, [(1, 10), (W // 2, 1), (W - 2, 10)])
+    pygame.draw.polygon(s, shadow, [(W // 2, 1), (W - 2, 10), (W // 2, 10)])
+    R(s, OUTLINE, 0, 10, W, H - 10); R(s, white, 1, 11, W - 2, H - 12)
+    R(s, shadow, W - 6, 11, 5, H - 12)
+    R(s, (40, 50, 70), 11, 15, 10, H - 16)                              # the open flap, dark inside
+    pygame.draw.polygon(s, shadow, [(11, 15), (16, 15), (11, H - 2)])
+    R(s, (40, 80, 200), 1, 11, W - 2, 1)
+    return up(s).convert_alpha()
+
+
+def appeal_board():
+    """The yellow police appeal board: INCIDENT / APPEAL FOR WITNESSES."""
+    s = canvas(18, 22)
+    R(s, OUTLINE, 2, 14, 1, 8); R(s, OUTLINE, 15, 14, 1, 8)
+    R(s, OUTLINE, 0, 0, 18, 15); R(s, (250, 214, 40), 1, 1, 16, 13)
+    R(s, (20, 50, 140), 1, 1, 16, 4)
+    draw_text(s, "POLICE", 1, 0, (250, 250, 250)) if text_width("POLICE") <= 16 else None
+    for y in (7, 9, 11):
+        R(s, OUTLINE, 3, y, 12 - (y % 3) * 2, 1)
+    return up(s).convert_alpha()
+
+
+def newspaper_icon():
+    s = canvas(14, 12)
+    R(s, (236, 232, 220), 0, 1, 13, 11); R(s, (210, 204, 190), 12, 1, 1, 11)
+    R(s, (40, 40, 44), 1, 2, 11, 2)                                      # the masthead
+    for y in (5, 7, 9):
+        R(s, (120, 120, 126), 1, y, 5, 1); R(s, (120, 120, 126), 7, y, 5, 1)
+    return up(add_outline(s)).convert_alpha()
+
+
+def card_icon():
+    s = canvas(14, 9)
+    R(s, (244, 240, 230), 0, 0, 14, 9)
+    R(s, (60, 60, 70), 2, 2, 7, 1); R(s, (140, 140, 150), 2, 4, 9, 1); R(s, (140, 140, 150), 2, 6, 6, 1)
+    return up(add_outline(s)).convert_alpha()

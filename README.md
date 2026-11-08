@@ -28,6 +28,7 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 | WASD / arrows | move |
 | Shift | run |
 | E | talk / play an arcade machine |
+| Click / E / Space | next line in a cut scene, put the newspaper away |
 | I | pocket (inventory) |
 | N | notebook |
 | F | lighter |
@@ -38,6 +39,15 @@ Needs Python 3.9 or newer. The libraries are `pygame-ce` and `pygame-widgets` (u
 | F3 | show FPS |
 | F5 / F6 / F7 | *(testing)* jump to the Frogmore steps / Park Street stairwell / the arcade |
 | Esc | close / quit |
+
+## Playing the story
+
+You start on Park Street every time the game runs. The compass at the top of the screen points to where you need to go next. It follows the real walking route around buildings, water and the police tape, and the distance shows as metres to walk.
+
+1. **The crime scene.** The compass leads you down to the harbourside. When you get close to the police officer, a cut scene plays between the detective, the officer and Daniel Shaw. Click to move on to the next line. Daniel gives you his number, which goes into your pocket and your notebook.
+2. **The Bristol Arcade.** Next, the compass points to the arcade where John worked.
+
+On the way you can call in at **Park Stores**. Press **E** at the counter to buy the morning paper (*The Harbour Gazette*). It stays in your pocket, so you can read it again (I, then Enter).
 
 ## The harbourside and the arcade
 
@@ -71,6 +81,7 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `minimap.py` | the mini-map in the bottom-left corner |
 | `daynight.py` | game clock, lighting and the watch |
 | `inventory.py` | the pocket and notebook |
+| `quest.py` | objectives, the compass, cut scenes and the newspaper |
 | `art/pixilart/` | every drawing as a `.pixil` file for Pixilart |
 | `art/drawings/` | the same drawings as PNGs |
 
