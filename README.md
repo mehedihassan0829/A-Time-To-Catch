@@ -88,7 +88,7 @@ Walk up to a machine and press E to play it. The game fills the screen inside th
 | `people.py` | NPCs: looks, jobs, routines, opening hours |
 | `story.py` | the story characters and what they say - edit this to write the plot |
 | `traffic.py` | cars, the bus and the traffic lights |
-| `minimap.py` | the mini-map in the bottom-left corner |
+| `minimap.py` | a mini-map (not shown in the game at the moment) |
 | `daynight.py` | game clock, lighting and the watch |
 | `inventory.py` | the pocket and notebook |
 | `quest.py` | the story as you play it: objectives, the walking-route compass, cut scenes |

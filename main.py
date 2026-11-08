@@ -68,7 +68,6 @@ try:                                   # the harbourside, off the end of College
 except ImportError:
     harbourside_map = None
 import arcade                          # the arcade machines and their games (arcade.py)
-import minimap                         # the mini-map in the bottom-left corner
 import quest                           # objectives, the compass, cut scenes, the newspaper (quest.py)
 
 # ============================================================== settings
@@ -2555,7 +2554,6 @@ def main():
     place_name = MAPS[map_index][0]
     pocket = inventory.Pocket(BASE_DIR / "saves")
     lighting = daynight.Lighting()
-    mini = minimap.MiniMap()
     def scene_world(kind, seed=7):
         """A place or room for a cut scene / time echo, built fresh (as it was: no police tape, nobody about)."""
         if kind[0] == "place":
@@ -2884,11 +2882,6 @@ def main():
         elif world.interior is not None:
             tip = hud("Walk out through the door at the bottom to leave")
             screen.blit(tip, (w // 2 - tip.get_width() // 2, h - 40))
-        if world.real is not None and world.real["attribution"] and world.interior is None:
-            credit = hud(world.real["attribution"])
-            screen.blit(credit, (w - credit.get_width() - 10, h - credit.get_height() - 8))
-        if story.cutscene is None:
-            mini.draw(screen, world, player, place_name)
         if show_fps:
             screen.blit(hud(f"FPS {clock.get_fps():.0f}"), (12, 34))
         if talk is not None:                                  # dialogue box

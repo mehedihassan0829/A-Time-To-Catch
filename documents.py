@@ -174,12 +174,16 @@ def locker(w, h):
     for k in range(5):                                                        # vents along the top
         pygame.draw.rect(s, (40, 44, 54), (W // 2 - 120 + k * 52, 34, 36, 6))
     f = serif(22, True)
-    items = [(pa.token_icon(), "An old arcade token"), (pa.photo_icon(), "An old photograph"), (pa.notes_icon(), "Notes")]
+    items = [(pa.token_icon(), "Arcade token"), (pa.photo_icon(), "Old photograph"), (pa.notes_icon(), "Notes")]
+    col = (W - 80) // 3                                                     # three columns, each label fits its own
     for k, (ic, label) in enumerate(items):
         big = pygame.transform.scale(ic, (ic.get_width() * 2, ic.get_height() * 2))
-        cx = int(W * (k + 1) / 4)
+        cx = 40 + col * k + col // 2
         s.blit(big, (cx - big.get_width() // 2, int(H * 0.62) - big.get_height() - 6))
-        t = f.render(label, True, (236, 236, 240))
+        size = 22
+        while serif(size, True).size(label)[0] > col - 16 and size > 12:
+            size -= 1
+        t = serif(size, True).render(label, True, (236, 236, 240))
         s.blit(t, (cx - t.get_width() // 2, int(H * 0.62) + 24))
     sub = serif(16, False, True).render("...the notes cite Professor Peter Usher, University of Bristol, on every page",
                                         True, (200, 204, 214))
