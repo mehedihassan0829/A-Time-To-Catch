@@ -134,3 +134,4 @@ Your notebook, the time of day and the arcade high scores are saved in `saves/` 
 
 - All art is drawn in code, in `pixel_art.py` and `people.py`.
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, available under the Open Database Licence.
+- Music made by Toby Spears

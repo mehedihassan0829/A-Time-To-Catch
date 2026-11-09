@@ -3069,7 +3069,7 @@ def run_game(screen, clock, music, menu):
 
         # ---- HUD (not during a cut scene: the black bars and the dialogue have the screen)
         if story.cutscene is None:
-            screen.blit(hud(f"{place_name}  |  WASD move  Shift run  E talk / look  I pocket  N notebook  J journal  F lighter  T time  Esc menu"), (12, 10))
+            screen.blit(hud(f"{place_name}"), (12, 10))
         if story.cutscene is None:
             # your watch - searching a room it's bigger, and spins on ahead: the faster, the closer you are (quest.py)
             big = story.searching
